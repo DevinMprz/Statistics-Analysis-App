@@ -5,18 +5,16 @@ import MiniTools from './components/MiniTools';
 let a: String | number = 5;
 
 type Person = {
-  age:number;
-  name:string;
+  age: number;
+  name: string;
 };
 
-
-const App:React.FC = () => {
+const App: React.FC = () => {
   return (
-    <div className="App">
-      <span className='heading'>Data Analysis</span>
+    <div className="App"><span className="heading">Data Analysis</span>
       <MiniTools />
     </div>
   );
-}
+};
 
 export default App;

@@ -1,33 +1,42 @@
-.GridContainer{
-	display: grid;
-	font-family: sans-serif, "consolas";
-	grid-template-columns: repeat(4, 250px);
-	gap: 10px;
-	max-width: 800px;
-	margin: auto; 
-	padding: 20px;
+.mainMenuContainer {
+  font-family: sans-serif, "consolas";
+  grid-template-columns: repeat(4, 250px);
+  gap: 10px;
+  margin: auto;
+  padding: 20px;
+  width: 100%;
+  height: auto;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-around;
 }
 
-.GridItem{
-	font-family: sans-serif, "consolas";
-	font-style: normal;
+.gridItem {
+  font-family: sans-serif, "consolas";
+  font-style: normal;
   font-weight: light;
   font-size: 24px;
   color: #ffffff;
   text-align: left;
+  width: 10%;
+  padding: 10px;
+  text-align: center;
+  border-radius: 10px;
+  background-color: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(5px);
 }
 
-.GridItem button{
-	padding: 15px;
+.gridItem button {
+  padding: 15px;
   font-size: 16px;
-  background-color: #4CAF50; /* Green background */
+  background-color: #4caf50; /* Green background */
   color: white;
   border: none;
   cursor: pointer;
   border-radius: 5px;
 }
 
-
-.GridContainer button:hover {
-	background-color: #8b11cc;
+.mainMenuContainer button:hover {
+  background-color: #8b11cc;
 }

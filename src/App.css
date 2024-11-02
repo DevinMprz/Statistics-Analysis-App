@@ -1,12 +1,11 @@
 .App {
   align-items: center;
   width: 100vw;
-  height: 100vh;
+  height: auto;
   display: flex;
   flex-direction: column;
 
-
-  background-image:url(pexels-steve-28494631.jpg);
+  background-image: url(pexels-steve-28494631.jpg);
   background-repeat: no-repeat;
   background-attachment: fixed;
   background-size: cover;
@@ -14,7 +13,6 @@
 }
 
 .heading {
-
   font-family: sans-serif, "consolas";
   font-style: normal;
   font-weight: bold;
@@ -35,10 +33,6 @@
   -webkit-backdrop-filter: blur(5px);
   background: rgba(0, 0, 0, 0.3);
 }
-
-
-
-
 
 /* .App-logo {
   height: 40vmin;

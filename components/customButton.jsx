@@ -8,9 +8,10 @@ const CustomButton = ({title, hadlePress, containerStyles, textStyles, isLoading
 		onPress={hadlePress}
 		activeOpacity={0.7}
 		disabled={isLoading}
-		className= {`bg-sky-400/75 rounded-xl min-h-[62px] justify-center items-center ${containerStyles}
+		className= {`rounded-xl min-h-[62px] justify-center items-center ${containerStyles}
 		${isLoading ? 'opacity-50' : '' }`}>
-			<Text className={`text-primary font-extrabold text-lg ${textStyles}`}>{title}</Text>
+			<Text className={`text-primary font-extrabold text-lg ${textStyles}`}>
+				{title}</Text>
 		</TouchableOpacity>
 	)
 }

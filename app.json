@@ -1,8 +1,8 @@
 {
   "expo": {
     "name": "Statistic",
-    "scheme": "Statistic",
-    "slug": "Statistic",
+    "scheme": "statistic",
+    "slug": "statistic",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "",

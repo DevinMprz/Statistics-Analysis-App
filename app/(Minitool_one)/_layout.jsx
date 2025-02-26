@@ -1,11 +1,23 @@
-import { View, Text } from 'react-native'
+import { View, Text, ScrollView } from 'react-native'
 import React from 'react'
+import { Stack } from 'expo-router'
+import { StatusBar } from 'expo-status-bar'
+
 
 const Minitool_1_layout = () => {
 	return (
-		<View>
-			<Text>minitool_1_layout</Text>
-		</View>
+		<>
+		<Stack>
+			<Stack.Screen 
+			name = "minitool_1"
+			options={{
+				headerShown: false
+			}} />
+		</Stack>
+
+		<StatusBar backgroundColor= "#ffffff" style='light'/>
+		
+		</>
 	)
 }
 

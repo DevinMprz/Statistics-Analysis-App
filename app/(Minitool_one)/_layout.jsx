@@ -7,7 +7,7 @@ import { StatusBar } from 'expo-status-bar'
 const Minitool_1_layout = () => {
 	return (
 		<>
-		<Stack>
+		<Stack screenOptions={{ headerShown: false}}>
 			<Stack.Screen 
 			name = "minitool_1"
 			options={{
@@ -15,7 +15,7 @@ const Minitool_1_layout = () => {
 			}} />
 		</Stack>
 
-		<StatusBar backgroundColor= "#ffffff" style='light'/>
+		<StatusBar backgroundColor= "#e5e7eb" style="auto"/>
 		
 		</>
 	)

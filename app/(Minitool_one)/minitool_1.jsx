@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, Dimensions, Platform } from 'react-native';
+import { GestureDetector } from 'react-native-gesture-handler';
 import { BarChart } from 'react-native-gifted-charts';
-import CustomButton from '../../components/customButton';
+import { RadioButton } from 'react-native-paper';
 
 
 const initialData = [
@@ -30,83 +31,140 @@ const initialData = [
 
 
 const Minitool_1 = () => {
-	const [chartWidth, setChartWidth] = useState(0);
-	
-	
+	const screenHeight = Dimensions.get('window').height;
+	const screenWidth = Dimensions.get('window').width;
+
 	const [data, setData] = useState(initialData);
  
 	//Sorted by Label
 	const sortByLabel = () => {
 	  const sortedData = [...data].sort((a, b) => a.label.localeCompare(b.label));
-	  setData(sortedData); 
+	  setData(sortedData);
+	  setChecked('label'); 
 	};
 
 	//Sorted by Values
 	const sortByValue = () => {
 		const sortedData = [...data].sort((a,b) => a.value - b.value);
 		setData(sortedData);
+		setChecked('value');
 	}
 
 	const [originalData] = useState(initialData);
 	//Back to unsorted data
 	const resetData = () => {
-		setData(originalData); 
+		setData(originalData);
+		setChecked('normal'); 
 	};
 
+	const [checked, setChecked] = React.useState('normal');
+
 	return (
-		<ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}>
-      		<View style={{ padding: 10 }}>
+		<ScrollView style={{ display: "flex", flexGrow: 1, backgroundColor: "#e5e7eb" }}>
+      		
         		
-				<Text style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 10 }}>
+				<Text style={{ 
+					fontSize: 30, 
+					fontWeight: 'bold', 
+					textAlign: 'center', 
+					marginBottom: 0, 
+					paddingTop: 35,
+					color: "#38BDF8BF",
+					}}>
          		 Life Span of Batteries
         		</Text>
         		
-				<View style={{ height: data.length * 30, backgroundColor: 'grey', justifyContent: 'start',
-						alignItems: 'start', padding: 10,
-					}}
-					onLayout={(event) => {
-            		const { width } = event.nativeEvent.layout;
-            		setChartWidth(width); 
-          			}}
-				>
+				<View style={{  
+					height: screenHeight * 0.75,
+					width: screenWidth,
+					padding: 0,
+					display: "flex",
+					flexGrow: 1,
+					flexDirection: "row",
+					justifyContent: "flex-start",
+					alignItems: "flex-start",
+					flexGrow: 1,
+					marginLeft: 0,
+					marginBottom: 10,
+					}}>
           		
-				<BarChart
-            	data={data.map(item => ({
-					...item,
-					frontColor: item.label === 'Always Ready' ? 'yellow' : 'blue'
-			  	}))}
-				horizontal
-				barWidth={10}
-				spacing={10}
-				noOfSections={Platform.OS !== 'android' ? 12: 5}
-				barBorderRadius={5}
-				yAxisThickness={0}
-				xAxisThickness={1}
-				hideRules
-				labelWidth={100000000} //need to change
-				width={chartWidth - 80}
+					<BarChart 
+						data={data.map(item => ({
+						...item,
+						frontColor: item.label === 'Always Ready' ? '#ffff00' : '#0099ff'
+					}))}
+					height={(screenHeight * 0.75) * 0.8}
+					width={screenWidth * 0.7}
+					horizontal
+					barWidth={10}
+					spacing={10}
+					noOfSections={Platform.OS !== 'android' ? 12: 5}
+					
+					barBorderRadius={5}
+					barBorderColor={"#666699"}
+					barBorderWidth={0.5}
+					
+					topLabe	
+
+					yAxisThickness={1}
+					xAxisThickness={1}
+					xAxisColor={"#666699"}
+					yAxisColor={"#666699"}
+					hideRules
 				/>
 				</View>
 
-				<CustomButton 
-					title='Sort by Company'
-					hadlePress={sortByLabel}
-					containerStyles = "bg-[#00cc00] w-full mt-7"
-				/>
-			
-				<CustomButton 
-					title='Sort by Value'
-					hadlePress={sortByValue}
-					containerStyles = "bg-[#00cc00] w-full mt-7"
-				/>
+				<View style={{
+					display: "flex",
+					flexDirection: "row",
+					alignItems: "center"
+				}}>
+					
+				</View>
+				
+				<View style={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-evenly"}}>
+						<View style={{ display: "flex", flexDirection: "column", alignItems: "center"}}>		
+							<RadioButton
+								value='normal'
+								status={checked === 'normal' ? 'checked' : 'unchecked' }
+								onPress={resetData}
+								uncheckedColor='#38BDF8BF'
+								color='#ff0066'
+							/>
+							<Text style={{ fontSize: 18}}>
+								Normal Data
+								</Text>
+						</View>
+						<View style={{ display: "flex", flexDirection: "column", alignItems: "center"}}>
+							<RadioButton 
+								value='label'
+								status={checked === 'label' ? 'checked' : 'unchecked' }
+								onPress={sortByLabel}
+								uncheckedColor='#38BDF8BF'
+								color='#ff0066'
+							/>
 
-				<CustomButton 
-					title='Back'
-					hadlePress={resetData}
-					containerStyles = "bg-[#00cc00] w-full mt-7"
-				/>
+							<Text style={{ 
+								fontSize: 18
 
-      		</View>
+							}}
+							>Sort by Label</Text>
+							
+						</View>
+						<View style={{ display: "flex", flexDirection: "column", alignItems: "center"}}>	
+							<RadioButton
+								value='value'
+								status={checked === 'value' ? 'checked' : 'unchecked' }
+								onPress={sortByValue}
+								uncheckedColor='#38BDF8BF'
+								color='#ff0066'
+							/>
+							<Text style={{ fontSize: 18}}>
+								Sort by Value
+								</Text>
+						</View>
+					</View>
+      		
     	</ScrollView>
 	)
 }

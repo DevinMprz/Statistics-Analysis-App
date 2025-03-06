@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, Dimensions, Platform } from 'react-native';
-import { GestureDetector } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BarChart } from 'react-native-gifted-charts';
 import { RadioButton } from 'react-native-paper';
+import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 
 
 const initialData = [
@@ -58,6 +59,18 @@ const Minitool_1 = () => {
 	};
 
 	const [checked, setChecked] = React.useState('normal');
+
+	const translateX = useSharedValue(0);
+	const gesture = Gesture.Pan().onUpdate((event) => {
+		console.log(event.translationX);
+	})
+
+	const rStyle = useAnimatedStyle(() => {
+		return{
+			transform[{ translateX: translateX.value}],
+		};
+	})
+
 
 	return (
 		<ScrollView style={{ display: "flex", flexGrow: 1, backgroundColor: "#e5e7eb" }}>
@@ -117,9 +130,17 @@ const Minitool_1 = () => {
 				<View style={{
 					display: "flex",
 					flexDirection: "row",
-					alignItems: "center"
-				}}>
-					
+					alignItems: "center",
+					justifyContent: "center",
+					gap: 1
+					}}>
+					<GestureHandlerRootView>
+					<GestureDetector gesture={gesture}>
+						<Animated.View style ={{ height: 25, backgroundColor: "blue", aspectRatio: 1, opacity: 0.8 }} />
+					</GestureDetector>	
+					<View style ={{ height: 25, backgroundColor: "blue", aspectRatio: 1, opacity: 0.8 }}/>
+					<View style ={{ height: 25, backgroundColor: "blue", aspectRatio: 1, opacity: 0.8 }}/>
+					</GestureHandlerRootView>
 				</View>
 				
 				<View style={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-evenly"}}>

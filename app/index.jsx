@@ -1,5 +1,5 @@
 import "../global.css";
-import {Text, View, ScrollView, Image } from 'react-native';
+import {Text, View, ScrollView, Image, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from "expo-status-bar";
 import { logo } from "../constants/icons";
@@ -13,11 +13,11 @@ export default function App() {
     <SafeAreaView className="bg-primary h-full">
       <ScrollView contentContainerStyle = {{ height: '100%'}}>
         <View className="w-full justify-center items-center min-h-[85vh] px-4">
-          <Image
+          <Image 
             source = {logo}
-            className="w-[350] h-[300]"
+            style={styles.imageContainer}
             resizeMode="contain"
-            /> 
+          /> 
 
           <View className="relative mt-5">
             <Text className="text-3xl text-black font-bold text-center">
@@ -48,5 +48,12 @@ export default function App() {
     
     </SafeAreaView>
   );
-
 }
+  
+const styles = StyleSheet.create({
+    imageContainer: {
+      height: 400,
+      width: '100%',
+      alignSelf: 'center',
+    },
+  });

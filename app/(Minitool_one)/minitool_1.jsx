@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { View, Text, ScrollView, Dimensions, StyleSheet, StatusBar, Platform } from 'react-native';
 import { BarChart } from 'react-native-gifted-charts';
 import { RadioButton } from 'react-native-paper';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, useSharedValue, runOnJS, clamp, useDerivedValue } from 'react-native-reanimated';
-import { Line, Svg} from 'react-native-svg'
-import { ReText } from 'react-native-redash';
+import Animated, { useAnimatedStyle, useSharedValue, runOnJS, clamp, useDerivedValue, useAnimatedProps } from 'react-native-reanimated';
+import { Line, Svg, Text as SvgText} from 'react-native-svg'
+import { isScaleX, ReText } from 'react-native-redash';
+import {scaleLinear} from 'd3-scale'
 
 const initialData = [
     {value: 10, label: 'Always Ready' },
@@ -15,19 +16,19 @@ const initialData = [
     {value: 100, label: 'Always Ready' },
     {value: 50, label: 'Tough Cell' },
     {value: 130, label: 'Always Ready' },
-    {value: 200, label: 'Tough Cell' },
+    {value: 140, label: 'Tough Cell' },
     {value: 55, label: 'Always Ready' },
     {value: 77, label: 'Tough Cell' },
     {value: 150, label: 'Always Ready' },
-    {value: 190, label: 'Tough Cell' },
+    {value: 122, label: 'Tough Cell' },
     {value: 130, label: 'Always Ready' },
-    {value: 250, label: 'Tough Cell' },
-    {value: 100, label: 'Always Ready' },
+    {value: 134, label: 'Tough Cell' },
+    {value: 96, label: 'Always Ready' },
     {value: 50, label: 'Tough Cell' },
     {value: 98, label: 'Always Ready' },
-    {value: 300, label: 'Tough Cell' },
+    {value: 130, label: 'Tough Cell' },
     {value: 68, label: 'Always Ready' },
-    {value: 225, label: 'Tough Cell' },	
+    {value: 144, label: 'Tough Cell' },	
 ];
 
 const  {width, height} = Dimensions.get('window');
@@ -41,21 +42,29 @@ const Minitool_1 = ({
 			return (this.barWidth + this.spacing) * 20 + 20;
 		},
 		width: width * 0.85,
-		shiftX: Platform.OS !== 'android' && Platform.OS !== 'ios' ? -(width * 0.01) : -(width * 0.1),
-		noteOfSections: Platform.OS !== 'android' && Platform.OS !== 'ios' ? 12 : 5,
-	}
+		shiftX: Platform.OS === 'web' ? 0 : -(width * 0.1),
+		noteOfSections: Platform.OS !== 'android' && Platform.OS !== 'ios' ? 12 : 6,
+		stepValue: Platform.OS === 'web' ? 14 : 28,
+	},
+	offset = Platform.OS === 'web' ? 2 : 20,
 }) => {
  const mainContainer = {
-		height: graph_config.height + 180,
-		width	: graph_config.width + 180,
+		height: graph_config.height + 190,
+		width	: graph_config.width + 190,
 	};
 
 	//Button state and data management
 	const [checked, setChecked] = useState('normal');
 	const [data, setData] = useState(initialData);
 	const [originalData] = useState(initialData);
-	const maxXvalue = initialData.reduce((max, item) => Math.max(max, item.value), 0);
+	const maxXvalue = graph_config.stepValue * graph_config.noteOfSections;
+	const minXValue = initialData.reduce((min, item) => Math.min(min, item.value), 9999);
 	
+	 const xScale = useMemo(
+    () => scaleLinear().domain([0, maxXvalue]).range([0 + graph_config.shiftX, graph_config.width + graph_config.shiftX]),
+    [maxXvalue, graph_config.width]
+  	);
+
 	//Sorted by Label
 	const sortByLabel = () => {
 	  const sortedData = [...data].sort((a, b) => a.label.localeCompare(b.label));
@@ -74,6 +83,8 @@ const Minitool_1 = ({
 		setChecked('normal'); 
 	};
 
+	
+	
 	//Separator gesture
 	const translationX = useSharedValue((maxXvalue /2));
   const prevTranslationX = useSharedValue(0);
@@ -103,23 +114,69 @@ const Minitool_1 = ({
 
 	//Separator line 
 	const AnimatedLine = Animated.createAnimatedComponent(Line);
+	const AnimatedSvgText = Animated.createAnimatedComponent(SvgText);
+
+	// const animatedText = useDerivedValue(() => {
+	// 	//return (xScale.invert(animatedX.value - 15).toFixed(0) - offset).toString();
+	// 	return animatedX.value - 100;
+	// });
 	
-	const currentLineValue = useDerivedValue(() =>
-		(((((animatedX.value - 15) * maxXvalue)) / graph_config.width)).toFixed(0)
-	);
-	
-	const animatedTextStyle = useAnimatedStyle(() => ({
-		position: 'absolute',
-		left: animatedX.value - 20,
-		alignItems: 'center',
-	}));
+
 
 	//Counter gesture
 	const minDistanseBeetwenLines = 30;
-	const translationXSecond = useSharedValue(maxXvalue / 2 - 40);
+	const translationXSecond = useSharedValue(maxXvalue / 2 - 40) ;
 	const translationXThird = useSharedValue(maxXvalue / 2 + 40);
+	const mainXValue = useSharedValue((translationXSecond + translationXThird)/2);
 	const latestSecondX = useSharedValue(translationXSecond.value);
 	const latestThirdX = useSharedValue(translationXThird.value);
+
+	const [highlightRange, setHighlightRange] = useState({ low: null, up: null });
+	
+	 useEffect(() => {
+    const calculateAndSetHighlightRange = () => {
+      // Get the current positions from your interactive handles (translationXSecond, translationXThird)
+      // and convert them back to chart data values using xScale.invert.
+      // Adjust the '-15' and 'offset' based on how your handles relate to the chart's data points.
+      const rawLow = xScale.invert(translationXSecond.value - 15).toFixed(0) - offset;
+      const rawUp = xScale.invert(translationXThird.value - 15).toFixed(0) - offset;
+
+      // Ensure low is always less than or equal to up, in case handles cross
+      const lowValue = Math.min(rawLow, rawUp);
+      const upValue = Math.max(rawLow, rawUp);
+
+      // Update the state with the new range
+      setHighlightRange({ low: lowValue, up: upValue });
+    };
+
+    // Call the function initially and whenever dependencies change
+    calculateAndSetHighlightRange();
+  }, [
+    translationXSecond.value, // Dependency: value of the first handle's position
+    translationXThird.value,  // Dependency: value of the second handle's position
+    offset,                   // Dependency: your offset
+    // Add other dependencies that affect xScale.invert or range calculation, e.g., graph_config.width, graph_config.maxValue
+    graph_config.width,
+    graph_config.maxValue,
+  ]);	
+
+
+	
+	const handleCounterArea = () => {
+
+		const low = xScale.invert(translationXSecond.value - 15).toFixed(0) - offset; 
+		const up = xScale.invert(translationXThird.value - 15).toFixed(0) - offset;
+		
+    let count = 0;
+
+    initialData.forEach((el) => {
+      if (el.value >= low && el.value <= up) {
+        count++;
+      }
+    });
+    return count;
+  };
+
 	
 	const mainCounterPan = Gesture.Pan()
 		.onStart(() => {
@@ -166,7 +223,7 @@ const Minitool_1 = ({
 				const clamped = clamp(
 					0,
 					event.translationX + prevTranslationX.value,
-					graph_config.width
+					translationXThird.value -  minDistanseBeetwenLines,
 				);
 	
 				translationXSecond.value = clamped;
@@ -186,7 +243,7 @@ const Minitool_1 = ({
 			.onUpdate((event) => {
 				runOnJS(setIsPanning)(true);
 				const clamped = clamp(
-					0,
+					translationXSecond.value + minDistanseBeetwenLines,
 					event.translationX + prevTranslationX.value,
 					graph_config.width
 				);
@@ -201,25 +258,50 @@ const Minitool_1 = ({
 			});
 		
 		const counterSecondButtonMovement = useAnimatedStyle(() => ({
-			transform: [{translateX: translationXSecond.value}],
+			transform: [{translateX: translationXSecond.value - 15}],
 		}));		
 		const counterThirdButtonMovement = useAnimatedStyle(() => ({
-			transform: [{translateX: translationXThird.value}],
+			transform: [{translateX: translationXThird.value - 45}],
 		}));	
 		const counterMainMovement = useAnimatedStyle(() => ({
 			transform: [{translateX: (translationXSecond.value + translationXThird.value) / 2 - 15}],
 		}));
 
+
 	const Chart = <View style={{ height: graph_config.height + 110 }}>
 		<BarChart
 			//Data for the chart
 			data={data.map(item => {
-            return {
-              ...item,
-              frontColor: item.label === 'Always Ready' ? '#ffff00' : '#0099ff'
-            };
+          // The value of the bar is its 'end' for horizontal bars
+          const barEndValue = item.value;
+
+          // Determine if the bar's end is within the calculated highlight range
+          const isInsideGreenRange =
+            highlightRange.low !== null && // Ensure range has been set
+            barEndValue >= highlightRange.low &&
+            barEndValue <= highlightRange.up;
+
+          let frontColor;
+          if (isInsideGreenRange) {
+            frontColor = '#00ff00'; // Green: if the bar's end is within the dynamic range
+          } else if (item.label === 'Always Ready') {
+            frontColor = '#ffff00'; // Yellow: for Company A
+          } else {
+            frontColor = '#0099ff'; // Blue: for Company B
+          }
+
+          return {
+            ...item,
+            frontColor: frontColor,
+          };
+        })}
+			// data={data.map(item => {
+      //       return {
+      //         ...item,
+      //         frontColor: item.label === 'Always Ready' ? '#ffff00' : '#0099ff'
+      //       };
           
-      })}
+      // })}
 
 			//Chart main settings	
 			height={graph_config.height}
@@ -227,6 +309,9 @@ const Minitool_1 = ({
 			hideRules
 			horizontal
 			shiftX={graph_config.shiftX} 
+			noOfSections={graph_config.noteOfSections}
+			stepValue={graph_config.stepValue}
+			maxValue={graph_config.stepValue * graph_config.noteOfSections}
 			
 			//Bar settings
 			barWidth={graph_config.barWidth}
@@ -236,8 +321,6 @@ const Minitool_1 = ({
 			barBorderWidth={0.5}
 			
 			//Axis settings
-			noOfSections={graph_config.noteOfSections}
-			maxValue={maxXvalue + 10}
 			yAxisThickness={1}
 			xAxisThickness={1}
 			xAxisColor={"#666699"}
@@ -257,17 +340,11 @@ const Minitool_1 = ({
 
 							{Chart}
 							
-							<Animated.View style={animatedTextStyle}>
-									<ReText
-									text={currentLineValue}
-									style={{ color: '#b58df1', fontWeight: 'bold', fontSize: 16 }}
-								/>
-							</Animated.View>
-
 							<Svg 
 							width="100%"
 							height="100%"
-							style={{ position: 'absolute'}}>
+							style={{ position: 'absolute'}}
+							>	
 								<AnimatedLine
 									x1={animatedX}
 									y1={30}
@@ -276,87 +353,74 @@ const Minitool_1 = ({
 									stroke="#b58df1"
 									strokeWidth="3"
 								/>
+								<AnimatedSvgText
+									x={animatedX}
+									y={30}
+									fontSize={12}
+									fill={'#000'}
+								>
+									{xScale.invert(animatedX.value - 15).toFixed(0) - offset}
+								</AnimatedSvgText>
 							</Svg>
+
 
 							<Svg 
 							width="100%"
 							height="100%"
 							style={{ position: 'absolute'}}>
+								
 								<AnimatedLine
 									x1={translationXSecond}
-									y1={graph_config.height + 155}
+									y1={graph_config.height + 185}
 									x2={translationXThird}
-									y2={graph_config.height + 155}
+									y2={graph_config.height + 185}
 									stroke="#000"
 									strokeWidth="3"
 								/>
-							</Svg>
-
-							<Svg width="100%" height="100%">
-										<AnimatedLine
-											x1={translationXSecond}
-											y1={30}
-											x2={translationXSecond}
-											y2={graph_config.height + 157}
-											stroke="#000"
-											strokeWidth="3"
-										/>
-							</Svg>
-
-							<Svg width="100%" height="100%">
+								<AnimatedLine
+									x1={translationXSecond}
+									y1={30}
+									x2={translationXSecond}
+									y2={graph_config.height + 187}
+									stroke="#000"
+									strokeWidth="3"
+									/>
 								<AnimatedLine
 									x1={translationXThird}
 									y1={30}
 									x2={translationXThird}
-									y2={graph_config.height + 157}
+									y2={graph_config.height + 187}
 									stroke="#000"
 									strokeWidth="3"
 								/>
+								 <SvgText
+                  x={translationXSecond.value + 20}
+                  y={30}
+                  fontSize={12}
+                  fill={'#000'}
+                >
+                  {handleCounterArea()}
+                </SvgText>
 							</Svg>
 
-							{/* <GestureDetector gesture={handleSecondLinePan}>
-								<Animated.View style={styles.absoluteFill}>
-									<Svg width="100%" height="100%">
-										<AnimatedLine
-											x1={translationXSecond}
-											y1={30}
-											x2={translationXSecond}
-											y2={graph_config.height + 157}
-											stroke="#000"
-											strokeWidth="3"
-										/>
-									</Svg>
-								</Animated.View>
-							</GestureDetector> */}
-{/* 		
-							<GestureDetector gesture={handleThirdLinePan}>
-								<Animated.View style={styles.absoluteFill}>
-									<Svg width="100%" height="100%">
-										<AnimatedLine
-											x1={translationXThird}
-											y1={30}
-											x2={translationXThird}
-											y2={graph_config.height + 157}
-											stroke="#000"
-											strokeWidth="3"
-										/>
-									</Svg>
-								</Animated.View>
-							</GestureDetector> */}
-
+						
 							<View style={styles.gestureView}>
 								<GestureDetector gesture={pan}>
 									<Animated.View style ={[styles.gestureButton, separatorMovement]}/>
 								</GestureDetector>
-								<GestureDetector gesture={secondButtonPan}>
-									<Animated.View style ={[styles.counterAdditionalButton, counterSecondButtonMovement]}/>
-								</GestureDetector>
-								<GestureDetector gesture={thirdButtonPan}>
-									<Animated.View style ={[styles.counterAdditionalButton, counterThirdButtonMovement]}/>
-								</GestureDetector>
-								<GestureDetector gesture={mainCounterPan}>
-									<Animated.View style={[styles.counterMainButton, counterMainMovement]} />
-								</GestureDetector>
+								<View style={{flexDirection: 'row', height: 30, margin: 0}}>
+									<GestureDetector gesture={secondButtonPan}>
+										<Animated.View style ={[styles.counterAdditionalButton, counterSecondButtonMovement]}/>
+									</GestureDetector>
+									<GestureDetector gesture={thirdButtonPan}>
+										<Animated.View style ={[styles.counterAdditionalButton, counterThirdButtonMovement]}/>
+									</GestureDetector>
+								</View>
+								<View style={{height: 30}}>
+									<GestureDetector gesture={mainCounterPan}>
+										<Animated.View style={[styles.counterMainButton, counterMainMovement]} />
+									</GestureDetector>	
+								</View>
 							</View>
 						</View> 
 										
@@ -429,7 +493,7 @@ const styles = StyleSheet.create({
 	//-------------------
 	//Separator movement
 	gestureView:{
-			height: 60,
+			height: 100,
 	},
 	gestureButton:{
 		width: 30, 

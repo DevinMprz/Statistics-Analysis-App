@@ -1,14 +1,11 @@
-import { StyleSheet, StatusBar, Platform } from 'react-native';
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Dimensions } from 'react-native';
-import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { View, Text, ScrollView, Dimensions, StyleSheet, StatusBar, Platform } from 'react-native';
 import { BarChart } from 'react-native-gifted-charts';
 import { RadioButton } from 'react-native-paper';
-import Animated, { useAnimatedStyle, useSharedValue, runOnJS, clamp, useDerivedValue, useAnimatedProps } from 'react-native-reanimated';
-import { Line, Svg, Rect, Text as SvgText, G, Circle} from 'react-native-svg'
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, { useAnimatedStyle, useSharedValue, runOnJS, clamp, useDerivedValue } from 'react-native-reanimated';
+import { Line, Svg} from 'react-native-svg'
 import { ReText } from 'react-native-redash';
-import { data } from 'autoprefixer';
-
 
 const initialData = [
     {value: 10, label: 'Always Ready' },
@@ -44,84 +41,74 @@ const Minitool_1 = ({
 			return (this.barWidth + this.spacing) * 20 + 20;
 		},
 		width: width * 0.85,
-		axis_color: '#000',
-		axisCircleFillColor: '#000',
-		axisStrokeColor: '#000',
-		axisStrokeWidth: 2,
-		axisCircleRadius: 5,
+		shiftX: Platform.OS !== 'android' && Platform.OS !== 'ios' ? -(width * 0.01) : -(width * 0.1),
+		noteOfSections: Platform.OS !== 'android' && Platform.OS !== 'ios' ? 12 : 5,
 	}
 }) => {
-
-		const mainContainer = {
+ const mainContainer = {
 		height: graph_config.height + 120,
 		width	: graph_config.width + 120,
-		flex: 'auto',
 	};
 
+	//Button state and data management
+	const [checked, setChecked] = useState('normal');
 	const [data, setData] = useState(initialData);
- 
+	const [originalData] = useState(initialData);
+	const maxXvalue = initialData.reduce((max, item) => Math.max(max, item.value), 0);
+	
 	//Sorted by Label
 	const sortByLabel = () => {
 	  const sortedData = [...data].sort((a, b) => a.label.localeCompare(b.label));
 	  setData(sortedData);
 	  setChecked('label'); 
 	};
-
 	//Sorted by Values
 	const sortByValue = () => {
 		const sortedData = [...data].sort((a,b) => a.value - b.value);
 		setData(sortedData);
 		setChecked('value');
 	}
-
-	const [originalData] = useState(initialData);
 	//Back to unsorted data
 	const resetData = () => {
 		setData(originalData);
 		setChecked('normal'); 
 	};
 
-	const [checked, setChecked] = React.useState('normal');
-
-
-	const maxXvalue = initialData.reduce((max, item) => Math.max(max, item.value), 0);
+	//Separator gesture
 	const translationX = useSharedValue((maxXvalue /2));
   const prevTranslationX = useSharedValue(0);
-		
-	const AnimatedLine = Animated.createAnimatedComponent(Line);
-	const animatedX = useSharedValue((maxXvalue /2) + 13);
-	
-	const [isPanning, setIsPanning] = useState(false);
-	const [, setRerender] = useState(0);
-	 // Gesture configuration
-	 const pan = Gesture.Pan()
+	const animatedX = useSharedValue((maxXvalue /2) + 15);
+
+	const [isPanning, setIsPanning] = useState(false); 
+	const pan = Gesture.Pan()
 		 .onStart(() => {
 				runOnJS(setIsPanning)(true);
 			 	prevTranslationX.value = translationX.value;
 		 })
 		 .onUpdate((event) => {
-				runOnJS(setIsPanning)(true);
-			 	translationX.value = clamp(10, event.translationX + prevTranslationX.value, width - 50);
+			runOnJS(setIsPanning)(true);
+			 	translationX.value = clamp(0, event.translationX + prevTranslationX.value, graph_config.width);
 			 	animatedX.value = translationX.value + 15;
-				console.log("translationX.value", translationX.value);
-				console.log("Width", graph_config.width);
-			  //runOnJS(setRerender)(r => r + 1);
+				// console.log("translationX.value", translationX.value);
+				// console.log("Width", graph_config.width);
+				// console.log("Height", graph_config.height);
 		 })
-		 .onEnd(() => {
-    		runOnJS(setIsPanning)(false);
-  	});
- 
-	 // Animated circle movement
-	 const animatedStyles = useAnimatedStyle(() => ({
+		 .onEnd(() =>{
+			runOnJS(setIsPanning)(false);
+		 });
+
+	 const separatorMovement = useAnimatedStyle(() => ({
 		 transform: [{ translateX: translationX.value }],
 	 }));
 
-
-	const currentLineValue = useDerivedValue(() =>
-  (((translationX.value / graph_config.width) * maxXvalue) - 5).toFixed(0)
-	);
+	//Separator line 
+	const AnimatedLine = Animated.createAnimatedComponent(Line);
 	
 
+	const currentLineValue = useDerivedValue(() =>
+		(((((animatedX.value - 15) * maxXvalue)) / graph_config.width)).toFixed(0)
+	);
+	
 	const animatedTextStyle = useAnimatedStyle(() => ({
 		position: 'absolute',
 		left: animatedX.value - 20,
@@ -129,65 +116,53 @@ const Minitool_1 = ({
 	}));
 
 
-	const newLocal = <View style={{ flex: 'auto', height: graph_config.height + 110}}>
+	const Chart = <View style={{ height: graph_config.height + 110 }}>
 		<BarChart
+			//Data for the chart
 			data={data.map(item => {
-				 if (false) {
-            // // Dynamic color while panning
-            // return {
-            //   ...item,
-            //   frontColor:
-            //     item.value <= getCurrentLineValue()
-            //       ? 'green'
-            //       : 'purple'
-            // };
-          } else {
-            // Default color when not panning
             return {
               ...item,
               frontColor: item.label === 'Always Ready' ? '#ffff00' : '#0099ff'
             };
-          }
-        })}
-			height={graph_config.height}
-			width={graph_config.width} //Platform.OS !== 'android' && Platform.OS !== 'ios' ? width * 0.9 : width * 0.85
-			noOfSections={Platform.OS !== 'android' && Platform.OS !== 'ios' ? 12 : 5}
+          
+      })}
 
+			//Chart main settings	
+			height={graph_config.height}
+			width={graph_config.width}
+			hideRules
+			horizontal
+			shiftX={graph_config.shiftX} 
+			
+			//Bar settings
 			barWidth={graph_config.barWidth}
 			spacing={graph_config.spacing}
 			barBorderRadius={graph_config.barBorderRadius}
 			barBorderColor={"#666699"}
 			barBorderWidth={0.5}
-
+			
+			//Axis settings
+			noOfSections={graph_config.noteOfSections}
+			maxValue={maxXvalue + 10}
 			yAxisThickness={1}
 			xAxisThickness={1}
 			xAxisColor={"#666699"}
 			yAxisColor={"#666699"}
 			xAxisLabelsHeight={1}
-			hideRules
-			horizontal
-			shiftX={Platform.OS !== 'android' && Platform.OS !== 'ios' ? 10 : -(width * 0.15) / 2} 
 			/>
 	</View>;
 	
-	
 	return (
 		<GestureHandlerRootView>
-			<ScrollView style={styles.AndroidSafeArea}>
-					<Text style={styles.text}>Life Span of Batteries</Text>
+				<ScrollView style={styles.AndroidSafeArea}>
+						{/*Main label*/}
+						<Text style={styles.text}>Life Span of Batteries</Text>
 						
-						{/* <View style={mainContainer}>	
-							<Svg height='100%' width='100%' style={svgGraphContainer}>
-								{render_x_axis()}
-								{render_y_axis()}
-								{render_x_axis_ticks()}
-							</Svg>
-						</View> */}
-
+						{/*Main container for chart and two functions: separator and counter*/}	
 						<View style ={mainContainer}>
 
-								{newLocal}
-
+							{Chart}
+							
 							<Animated.View style={animatedTextStyle}>
 									<ReText
 									text={currentLineValue}
@@ -195,14 +170,13 @@ const Minitool_1 = ({
 								/>
 							</Animated.View>
 
-
-						 <Svg 
+							<Svg 
 							width="100%"
 							height="100%"
 							style={{ position: 'absolute'}}>
 								<AnimatedLine
 									x1={animatedX}
-									y1={30}
+									y1={0}
 									x2={animatedX}
 									y2={graph_config.height + 120}
 									stroke="#b58df1"
@@ -211,10 +185,10 @@ const Minitool_1 = ({
 							</Svg>
 
 						</View> 
-									
+										
 						<View style={styles.gestureView}>
 							<GestureDetector gesture={pan}>
-								<Animated.View style ={[styles.gestureButton, animatedStyles]}/>
+								<Animated.View style ={[styles.gestureButton, separatorMovement]}/>
 							</GestureDetector>
 						</View> 
 
@@ -252,15 +226,14 @@ const Minitool_1 = ({
 						</View> 		
 				</ScrollView>
 		</GestureHandlerRootView>		  		
-	)
-}
+)}
 
 const styles = StyleSheet.create({
   AndroidSafeArea:{
 		flex: 1,
 		flexDirection: 'column',
     backgroundColor: '#e5e7eb',
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
 	},
 	text: {
 		margin: height * 0.02,
@@ -269,6 +242,8 @@ const styles = StyleSheet.create({
 		textAlign: 'center', 
 		color: "#38BDF8BF",
 	},
+	
+	//Sort buttons style
 	buttonContainer:{
 		height: 60,
 		display: "flex", 
@@ -281,6 +256,8 @@ const styles = StyleSheet.create({
 		flexDirection: "column", 
 		alignItems: "center"
 	},
+	//-------------------
+	//Separator movement
 	gestureView:{
 			height: 30,
 	},
@@ -290,6 +267,7 @@ const styles = StyleSheet.create({
 		backgroundColor: '#b58df1', 
 		borderRadius: 20,
 	}
+	//--------------------
 });
 
 export default Minitool_1;

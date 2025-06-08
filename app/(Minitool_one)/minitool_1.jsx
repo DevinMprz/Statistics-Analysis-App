@@ -46,8 +46,8 @@ const Minitool_1 = ({
 	}
 }) => {
  const mainContainer = {
-		height: graph_config.height + 120,
-		width	: graph_config.width + 120,
+		height: graph_config.height + 180,
+		width	: graph_config.width + 180,
 	};
 
 	//Button state and data management
@@ -104,7 +104,6 @@ const Minitool_1 = ({
 	//Separator line 
 	const AnimatedLine = Animated.createAnimatedComponent(Line);
 	
-
 	const currentLineValue = useDerivedValue(() =>
 		(((((animatedX.value - 15) * maxXvalue)) / graph_config.width)).toFixed(0)
 	);
@@ -115,6 +114,101 @@ const Minitool_1 = ({
 		alignItems: 'center',
 	}));
 
+	//Counter gesture
+	const minDistanseBeetwenLines = 30;
+	const translationXSecond = useSharedValue(maxXvalue / 2 - 40);
+	const translationXThird = useSharedValue(maxXvalue / 2 + 40);
+	const latestSecondX = useSharedValue(translationXSecond.value);
+	const latestThirdX = useSharedValue(translationXThird.value);
+	
+	const mainCounterPan = Gesture.Pan()
+		.onStart(() => {
+			runOnJS(setIsPanning)(true);
+			// store initial offsets for both lines
+			prevTranslationX.value = 0;
+			latestSecondX.value = translationXSecond.value;
+			latestThirdX.value = translationXThird.value;
+		})
+		.onUpdate((event) => {
+			runOnJS(setIsPanning)(true);
+			const pointer_x = event.translationX;
+			
+			translationXSecond.value = clamp(
+				0,
+				latestSecondX.value + pointer_x,
+				graph_config.width - minDistanseBeetwenLines,
+			);
+
+			translationXThird.value = clamp(
+				minDistanseBeetwenLines,
+				latestThirdX.value + pointer_x,
+				graph_config.width
+			);
+
+			//handleCounterArea();
+			//console.log(currentAmountVal);
+		})
+		.onEnd(() => {
+			runOnJS(setIsPanning)(false);
+
+			// update latest positions
+			latestSecondX.value = translationXSecond.value;
+			latestThirdX.value = translationXThird.value;
+		});
+
+		const secondButtonPan = Gesture.Pan()
+			.onStart(() => {
+				runOnJS(setIsPanning)(true);
+				prevTranslationX.value = translationXSecond.value;
+			})
+			.onUpdate((event) => {
+				runOnJS(setIsPanning)(true);
+				const clamped = clamp(
+					0,
+					event.translationX + prevTranslationX.value,
+					graph_config.width
+				);
+	
+				translationXSecond.value = clamped;
+				latestSecondX.value = clamped;
+	
+				//handleCounterArea();
+			})
+			.onEnd(() => {
+				runOnJS(setIsPanning)(false);
+			});
+	
+		const thirdButtonPan = Gesture.Pan()
+			.onStart(() => {
+				runOnJS(setIsPanning)(true);
+				prevTranslationX.value = translationXThird.value;
+			})
+			.onUpdate((event) => {
+				runOnJS(setIsPanning)(true);
+				const clamped = clamp(
+					0,
+					event.translationX + prevTranslationX.value,
+					graph_config.width
+				);
+	
+				translationXThird.value = clamped;
+				latestThirdX.value = clamped;
+	
+				//handleCounterArea();
+			})
+			.onEnd(() => {
+				runOnJS(setIsPanning)(false);
+			});
+		
+		const counterSecondButtonMovement = useAnimatedStyle(() => ({
+			transform: [{translateX: translationXSecond.value}],
+		}));		
+		const counterThirdButtonMovement = useAnimatedStyle(() => ({
+			transform: [{translateX: translationXThird.value}],
+		}));	
+		const counterMainMovement = useAnimatedStyle(() => ({
+			transform: [{translateX: (translationXSecond.value + translationXThird.value) / 2 - 15}],
+		}));
 
 	const Chart = <View style={{ height: graph_config.height + 110 }}>
 		<BarChart
@@ -176,7 +270,7 @@ const Minitool_1 = ({
 							style={{ position: 'absolute'}}>
 								<AnimatedLine
 									x1={animatedX}
-									y1={0}
+									y1={30}
 									x2={animatedX}
 									y2={graph_config.height + 120}
 									stroke="#b58df1"
@@ -184,14 +278,90 @@ const Minitool_1 = ({
 								/>
 							</Svg>
 
+							<Svg 
+							width="100%"
+							height="100%"
+							style={{ position: 'absolute'}}>
+								<AnimatedLine
+									x1={translationXSecond}
+									y1={graph_config.height + 155}
+									x2={translationXThird}
+									y2={graph_config.height + 155}
+									stroke="#000"
+									strokeWidth="3"
+								/>
+							</Svg>
+
+							<Svg width="100%" height="100%">
+										<AnimatedLine
+											x1={translationXSecond}
+											y1={30}
+											x2={translationXSecond}
+											y2={graph_config.height + 157}
+											stroke="#000"
+											strokeWidth="3"
+										/>
+							</Svg>
+
+							<Svg width="100%" height="100%">
+								<AnimatedLine
+									x1={translationXThird}
+									y1={30}
+									x2={translationXThird}
+									y2={graph_config.height + 157}
+									stroke="#000"
+									strokeWidth="3"
+								/>
+							</Svg>
+
+							{/* <GestureDetector gesture={handleSecondLinePan}>
+								<Animated.View style={styles.absoluteFill}>
+									<Svg width="100%" height="100%">
+										<AnimatedLine
+											x1={translationXSecond}
+											y1={30}
+											x2={translationXSecond}
+											y2={graph_config.height + 157}
+											stroke="#000"
+											strokeWidth="3"
+										/>
+									</Svg>
+								</Animated.View>
+							</GestureDetector> */}
+{/* 		
+							<GestureDetector gesture={handleThirdLinePan}>
+								<Animated.View style={styles.absoluteFill}>
+									<Svg width="100%" height="100%">
+										<AnimatedLine
+											x1={translationXThird}
+											y1={30}
+											x2={translationXThird}
+											y2={graph_config.height + 157}
+											stroke="#000"
+											strokeWidth="3"
+										/>
+									</Svg>
+								</Animated.View>
+							</GestureDetector> */}
+
+							<View style={styles.gestureView}>
+								<GestureDetector gesture={pan}>
+									<Animated.View style ={[styles.gestureButton, separatorMovement]}/>
+								</GestureDetector>
+								<GestureDetector gesture={secondButtonPan}>
+									<Animated.View style ={[styles.counterAdditionalButton, counterSecondButtonMovement]}/>
+								</GestureDetector>
+								<GestureDetector gesture={thirdButtonPan}>
+									<Animated.View style ={[styles.counterAdditionalButton, counterThirdButtonMovement]}/>
+								</GestureDetector>
+								<GestureDetector gesture={mainCounterPan}>
+									<Animated.View style={[styles.counterMainButton, counterMainMovement]} />
+								</GestureDetector>
+							</View>
 						</View> 
 										
-						<View style={styles.gestureView}>
-							<GestureDetector gesture={pan}>
-								<Animated.View style ={[styles.gestureButton, separatorMovement]}/>
-							</GestureDetector>
-						</View> 
-
+					
+		
 						<View style={styles.buttonContainer}>
 								<View style={styles.radioButton}>		
 									<RadioButton
@@ -259,15 +429,36 @@ const styles = StyleSheet.create({
 	//-------------------
 	//Separator movement
 	gestureView:{
-			height: 30,
+			height: 60,
 	},
 	gestureButton:{
 		width: 30, 
 		height: 30, 
 		backgroundColor: '#b58df1', 
 		borderRadius: 20,
-	}
+	},
 	//--------------------
+	//Counter gesture
+	counterMainButton: {
+    width: 30,
+    height: 30,
+    backgroundColor: "#000",
+    borderRadius: 20,
+  },
+	counterAdditionalButton: {
+    width: 30,
+    height: 30,
+    backgroundColor: "#fff",
+    borderRadius: 20,
+  },
+  absoluteFill: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
+	//------
 });
 
 export default Minitool_1;

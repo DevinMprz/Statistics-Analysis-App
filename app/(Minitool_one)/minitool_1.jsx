@@ -49,7 +49,7 @@ const Minitool_1 = ({
 		noteOfSections: Platform.OS !== 'android' && Platform.OS !== 'ios' ? 12 : 6,
 		stepValue: Platform.OS === 'web' ? 14 : 28,
 	},
-	offset = Platform.OS === 'web' ? 3 : 23,
+	offset = Platform.OS === 'web' ? 3 : 26,
 }) => {
  const mainContainer = {
 		height: graph_config.height + 180,
@@ -121,13 +121,6 @@ const Minitool_1 = ({
 	const AnimatedLine = Animated.createAnimatedComponent(Line);
 	const AnimatedSvgText = Animated.createAnimatedComponent(SvgText);
 
-	// const animatedText = useDerivedValue(() => {
-	// 	//return (xScale.invert(animatedX.value - 15).toFixed(0) - offset).toString();
-	// 	return animatedX.value - 100;
-	// });
-	
-
-
 	//Counter gesture
 	const minDistanseBeetwenLines = 30;
 	const translationXSecond = useSharedValue(maxXvalue / 2 - 40) ;
@@ -140,33 +133,25 @@ const Minitool_1 = ({
 	
 	 useEffect(() => {
     const calculateAndSetHighlightRange = () => {
-      // Get the current positions from your interactive handles (translationXSecond, translationXThird)
-      // and convert them back to chart data values using xScale.invert.
-      // Adjust the '-15' and 'offset' based on how your handles relate to the chart's data points.
       const rawLow = xScale.invert(translationXSecond.value - 15).toFixed(0) - offset;
       const rawUp = xScale.invert(translationXThird.value - 15).toFixed(0) - offset;
 
-      // Ensure low is always less than or equal to up, in case handles cross
       const lowValue = Math.min(rawLow, rawUp);
       const upValue = Math.max(rawLow, rawUp);
 
-      // Update the state with the new range
       setHighlightRange({ low: lowValue, up: upValue });
     };
 
-    // Call the function initially and whenever dependencies change
     calculateAndSetHighlightRange();
   }, [
-    translationXSecond.value, // Dependency: value of the first handle's position
-    translationXThird.value,  // Dependency: value of the second handle's position
-    offset,                   // Dependency: your offset
-    // Add other dependencies that affect xScale.invert or range calculation, e.g., graph_config.width, graph_config.maxValue
+    translationXSecond.value,
+    translationXThird.value,
+    offset,          
     graph_config.width,
     graph_config.maxValue,
   ]);	
 
 
-	
 	const handleCounterArea = () => {
 
 		const low = xScale.invert(translationXSecond.value - 15).toFixed(0) - offset; 
@@ -182,7 +167,6 @@ const Minitool_1 = ({
     return count;
   };
 
-	
 	const mainCounterPan = Gesture.Pan()
 		.onStart(() => {
 			runOnJS(setIsPanning)(true);
@@ -206,9 +190,6 @@ const Minitool_1 = ({
 				latestThirdX.value + pointer_x,
 				graph_config.width
 			);
-
-			//handleCounterArea();
-			//console.log(currentAmountVal);
 		})
 		.onEnd(() => {
 			runOnJS(setIsPanning)(false);
@@ -233,8 +214,6 @@ const Minitool_1 = ({
 	
 				translationXSecond.value = clamped;
 				latestSecondX.value = clamped;
-	
-				//handleCounterArea();
 			})
 			.onEnd(() => {
 				runOnJS(setIsPanning)(false);
@@ -255,8 +234,6 @@ const Minitool_1 = ({
 	
 				translationXThird.value = clamped;
 				latestThirdX.value = clamped;
-	
-				//handleCounterArea();
 			})
 			.onEnd(() => {
 				runOnJS(setIsPanning)(false);
@@ -329,7 +306,6 @@ const Minitool_1 = ({
 	</View>;
 	
 	const default_length = graph_config.height + 155;
-	const default_length_for_mobile = graph_config.height + 155;
 	const [activeLength, setActiveLength] = useState(graph_config.height + 155);
 	const tabs = [
 		<CustomButton
@@ -369,7 +345,6 @@ const Minitool_1 = ({
 			containerStyles = "bg-sky-400/75 w-full m-4"
 		/>
 		]
-
 
 	return (
 		<GestureHandlerRootView>
@@ -578,8 +553,6 @@ const styles = StyleSheet.create({
 		flexDirection: "column", 
 		alignItems: "center", 
 		justifyContent: "space-evenly",
-		//marginRight: width * 0.25,
-		//marginLeft: width * 0.25,
 	},
 	radioButton:{
 		display: "flex", 

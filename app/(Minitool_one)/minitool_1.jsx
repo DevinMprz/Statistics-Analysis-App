@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, act } from 'react';
 import { View, Text, ScrollView, Dimensions, StyleSheet, StatusBar, Platform } from 'react-native';
 import { BarChart } from 'react-native-gifted-charts';
 import { RadioButton } from 'react-native-paper';
@@ -7,6 +7,8 @@ import Animated, { useAnimatedStyle, useSharedValue, runOnJS, clamp, useDerivedV
 import { Line, Svg, Text as SvgText} from 'react-native-svg'
 import { isScaleX, ReText } from 'react-native-redash';
 import {scaleLinear} from 'd3-scale'
+import CustomTabBar from './minitool_one_components/customTabBar';
+import CustomButton from '../../components/customCircleButton';
 
 const initialData = [
     {value: 10, label: 'Always Ready' },
@@ -41,25 +43,27 @@ const Minitool_1 = ({
 		get height() {
 			return (this.barWidth + this.spacing) * 20 + 20;
 		},
-		width: width * 0.85,
+		width: width * 0.75,
 		shiftX: Platform.OS === 'web' ? 0 : -(width * 0.1),
 		noteOfSections: Platform.OS !== 'android' && Platform.OS !== 'ios' ? 12 : 6,
 		stepValue: Platform.OS === 'web' ? 14 : 28,
 	},
-	offset = Platform.OS === 'web' ? 2 : 20,
+	offset = Platform.OS === 'web' ? 3 : 20,
 }) => {
  const mainContainer = {
-		height: graph_config.height + 190,
+		height: graph_config.height + 200,
 		width	: graph_config.width + 190,
 	};
+
+	const [activeTool, setActiveTool] = useState('none');
+
 
 	//Button state and data management
 	const [checked, setChecked] = useState('normal');
 	const [data, setData] = useState(initialData);
 	const [originalData] = useState(initialData);
 	const maxXvalue = graph_config.stepValue * graph_config.noteOfSections;
-	const minXValue = initialData.reduce((min, item) => Math.min(min, item.value), 9999);
-	
+
 	 const xScale = useMemo(
     () => scaleLinear().domain([0, maxXvalue]).range([0 + graph_config.shiftX, graph_config.width + graph_config.shiftX]),
     [maxXvalue, graph_config.width]
@@ -86,7 +90,7 @@ const Minitool_1 = ({
 	
 	
 	//Separator gesture
-	const translationX = useSharedValue((maxXvalue /2));
+	const translationX = useSharedValue((maxXvalue /2))
   const prevTranslationX = useSharedValue(0);
 	const animatedX = useSharedValue((maxXvalue /2) + 15);
 
@@ -329,104 +333,182 @@ const Minitool_1 = ({
 			/>
 	</View>;
 	
+	const default_length = graph_config.height + 155;
+	const [activeLength, setActiveLength] = useState(graph_config.height + 155);
+	const tabs = [
+		<CustomButton
+			title={'Value tool'}
+			hadlePress={() => {
+				if(activeTool === 'none'){
+					setActiveTool('value');
+				}else if(activeTool === 'range'){
+					setActiveLength(default_length + 30);
+					setActiveTool('both');
+				}else if(activeTool === 'both'){
+					setActiveTool('range');
+					setActiveLength(default_length);
+				}else{
+					setActiveTool('none');
+				}
+			}}
+			containerStyles = {`bg-sky-400/75 w-full m-4`}
+		/>,
+		<CustomButton
+			title={'Range tool'}
+			hadlePress={() => {
+				if(activeTool === 'none'){
+					setActiveTool('range');
+				}else if(activeTool === 'value'){
+					setActiveLength(default_length + 30);
+					setActiveTool('both');
+				}else if(activeTool === 'both'){
+					setActiveTool('value');
+					setActiveLength(default_length);
+					setHighlightRange({low: null, up: null});
+				}else{
+					setActiveTool('none');
+					setHighlightRange({low: null, up: null});
+				}
+			}}
+			containerStyles = "bg-sky-400/75 w-full m-4"
+		/>
+		]
+
+
 	return (
 		<GestureHandlerRootView>
 				<ScrollView style={styles.AndroidSafeArea}>
 						{/*Main label*/}
 						<Text style={styles.text}>Life Span of Batteries</Text>
-						
-						{/*Main container for chart and two functions: separator and counter*/}	
-						<View style ={mainContainer}>
+					 
+						<View style={{height: height * 0.85 , width: width, margin: 0, flexDirection: 'row'}}>
+							{/*Main container for chart and two functions: separator and counter*/}	
+							<View style ={mainContainer}>
 
 							{Chart}
 							
-							<Svg 
-							width="100%"
-							height="100%"
-							style={{ position: 'absolute'}}
-							>	
-								<AnimatedLine
-									x1={animatedX}
-									y1={30}
-									x2={animatedX}
-									y2={graph_config.height + 120}
-									stroke="#b58df1"
-									strokeWidth="3"
-								/>
-								<AnimatedSvgText
-									x={animatedX}
-									y={30}
-									fontSize={12}
-									fill={'#000'}
-								>
-									{xScale.invert(animatedX.value - 15).toFixed(0) - offset}
-								</AnimatedSvgText>
-							</Svg>
-
-
-							<Svg 
-							width="100%"
-							height="100%"
-							style={{ position: 'absolute'}}>
-								
-								<AnimatedLine
-									x1={translationXSecond}
-									y1={graph_config.height + 185}
-									x2={translationXThird}
-									y2={graph_config.height + 185}
-									stroke="#000"
-									strokeWidth="3"
-								/>
-								<AnimatedLine
-									x1={translationXSecond}
-									y1={30}
-									x2={translationXSecond}
-									y2={graph_config.height + 187}
-									stroke="#000"
-									strokeWidth="3"
-									/>
-								<AnimatedLine
-									x1={translationXThird}
-									y1={30}
-									x2={translationXThird}
-									y2={graph_config.height + 187}
-									stroke="#000"
-									strokeWidth="3"
-								/>
-								 <SvgText
-                  x={translationXSecond.value + 20}
-                  y={30}
-                  fontSize={12}
-                  fill={'#000'}
-                >
-                  {handleCounterArea()}
-                </SvgText>
-							</Svg>
-
-						
-							<View style={styles.gestureView}>
-								<GestureDetector gesture={pan}>
-									<Animated.View style ={[styles.gestureButton, separatorMovement]}/>
-								</GestureDetector>
-								<View style={{flexDirection: 'row', height: 30, margin: 0}}>
-									<GestureDetector gesture={secondButtonPan}>
-										<Animated.View style ={[styles.counterAdditionalButton, counterSecondButtonMovement]}/>
-									</GestureDetector>
-									<GestureDetector gesture={thirdButtonPan}>
-										<Animated.View style ={[styles.counterAdditionalButton, counterThirdButtonMovement]}/>
+							{(activeTool === 'value' || activeTool === 'both') && (<View style ={styles.absoluteFill} >
+									<Svg 
+									width="100%"
+									height="100%"
+									style={{ position: 'absolute'}}
+									>	
+										<AnimatedLine
+											x1={animatedX}
+											y1={30}
+											x2={animatedX}
+											y2={graph_config.height + 120}
+											stroke="#b58df1"
+											strokeWidth="3"
+										/>
+										<AnimatedSvgText
+											x={animatedX}
+											y={30}
+											fontSize={12}
+											fill={'#000'}
+										>
+											{xScale.invert(animatedX.value - 15).toFixed(0) - offset}
+										</AnimatedSvgText>
+									</Svg>
+								</View>
+							)}
+							{(activeTool === 'value') && (<View style={styles.gestureView}>
+									<GestureDetector gesture={pan}>
+										<Animated.View style ={[styles.gestureButton, separatorMovement]}/>
 									</GestureDetector>
 								</View>
-								<View style={{height: 30}}>
-									<GestureDetector gesture={mainCounterPan}>
-										<Animated.View style={[styles.counterMainButton, counterMainMovement]} />
-									</GestureDetector>	
+							)}
+
+							{(activeTool === 'range' || activeTool === 'both') && (<View style ={styles.absoluteFill} >
+									<Svg 
+										width="100%"
+										height="100%"
+										style={{ position: 'absolute'}}
+										>
+										<AnimatedLine
+											x1={translationXSecond}
+											y1={activeLength}
+											x2={translationXThird}
+											y2={activeLength}
+											stroke="#000"
+											strokeWidth="3"
+										/>
+										<AnimatedLine
+											x1={translationXSecond}
+											y1={30}
+											x2={translationXSecond}
+											y2={activeLength + 1}
+											stroke="#000"
+											strokeWidth="3"
+											/>
+										<AnimatedLine
+											x1={translationXThird}
+											y1={30}
+											x2={translationXThird}
+											y2={activeLength + 1}
+											stroke="#000"
+											strokeWidth="3"
+										/>
+										<SvgText
+											x={translationXSecond.value + 20}
+											y={30}
+											fontSize={12}
+											fill={'#000'}
+										>
+											{handleCounterArea()}
+										</SvgText>
+									</Svg> 
 								</View>
-							</View>
-						</View> 
-										
-					
-		
-						<View style={styles.buttonContainer}>
+							)}
+							{(activeTool === 'range') && (<View style={styles.gestureView}>
+									<View style={{flexDirection: 'row', height: 30, margin: 0}}>
+										<GestureDetector gesture={secondButtonPan}>
+											<Animated.View style ={[styles.counterAdditionalButton, counterSecondButtonMovement]}/>
+										</GestureDetector>
+										<GestureDetector gesture={thirdButtonPan}>
+											<Animated.View style ={[styles.counterAdditionalButton, counterThirdButtonMovement]}/>
+										</GestureDetector>
+									</View>
+									<View style={{height: 30}}>
+										<GestureDetector gesture={mainCounterPan}>
+											<Animated.View style={[styles.counterMainButton, counterMainMovement]} />
+										</GestureDetector>	
+									</View>
+								</View>
+							)}
+							
+							{(activeTool === 'both') && (<View style={styles.gestureView}>
+								<View style={styles.gestureView}>
+									<GestureDetector gesture={pan}>
+										<Animated.View style ={[styles.gestureButton, separatorMovement]}/>
+									</GestureDetector>
+								</View>
+								<View style={styles.gestureView}>
+									<View style={{flexDirection: 'row', height: 30, margin: 0}}>
+										<GestureDetector gesture={secondButtonPan}>
+											<Animated.View style ={[styles.counterAdditionalButton, counterSecondButtonMovement]}/>
+										</GestureDetector>
+										<GestureDetector gesture={thirdButtonPan}>
+											<Animated.View style ={[styles.counterAdditionalButton, counterThirdButtonMovement]}/>
+										</GestureDetector>
+									</View>
+									<View style={{height: 30}}>
+										<GestureDetector gesture={mainCounterPan}>
+											<Animated.View style={[styles.counterMainButton, counterMainMovement]} />
+										</GestureDetector>	
+									</View>
+								</View>
+								</View>
+							)}
+
+							</View> 
+
+							<View style={{
+								height: graph_config.height + 190,display: "flex", 
+								flexDirection: "column", 
+								alignItems: "center", 
+								justifyContent: "space-evenly", 
+								}}>
 								<View style={styles.radioButton}>		
 									<RadioButton
 										value='normal'
@@ -457,7 +539,14 @@ const Minitool_1 = ({
 									/>
 									<Text style={{ fontSize: 18}}>Sort by Value</Text>
 								</View>
-						</View> 		
+							</View>
+						</View>
+										
+					
+						<CustomTabBar
+							customTabs={tabs}
+						/> 
+
 				</ScrollView>
 		</GestureHandlerRootView>		  		
 )}
@@ -481,9 +570,11 @@ const styles = StyleSheet.create({
 	buttonContainer:{
 		height: 60,
 		display: "flex", 
-		flexDirection: "row", 
+		flexDirection: "column", 
 		alignItems: "center", 
-		justifyContent: "space-evenly"
+		justifyContent: "space-evenly",
+		//marginRight: width * 0.25,
+		//marginLeft: width * 0.25,
 	},
 	radioButton:{
 		display: "flex", 
@@ -493,7 +584,7 @@ const styles = StyleSheet.create({
 	//-------------------
 	//Separator movement
 	gestureView:{
-			height: 100,
+			height: 30,
 	},
 	gestureButton:{
 		width: 30, 
@@ -515,6 +606,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 20,
   },
+	valueButton: {
+		//position: "absolute",
+    height: 100,
+		width: 100,
+	},
   absoluteFill: {
     position: "absolute",
     top: 0,
@@ -522,7 +618,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
   },
-	//------
+	//-------
 });
 
 export default Minitool_1;

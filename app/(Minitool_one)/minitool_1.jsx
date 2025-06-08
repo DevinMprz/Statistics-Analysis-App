@@ -9,6 +9,8 @@ import { isScaleX, ReText } from 'react-native-redash';
 import {scaleLinear} from 'd3-scale'
 import CustomTabBar from './minitool_one_components/customTabBar';
 import CustomButton from '../../components/customCircleButton';
+import CustomDataForm from './minitool_one_components/customDataForm';
+import Test from './minitool_one_components/test';
 
 const initialData = [
     {value: 10, label: 'Always Ready' },
@@ -49,7 +51,7 @@ const Minitool_1 = ({
 		noteOfSections: Platform.OS !== 'android' && Platform.OS !== 'ios' ? 12 : 6,
 		stepValue: Platform.OS === 'web' ? 14 : 28,
 	},
-	offset = Platform.OS === 'web' ? 3 : 26,
+	offset = Platform.OS === 'web' ? 3 : 24,
 }) => {
  const mainContainer = {
 		height: graph_config.height + 180,
@@ -58,35 +60,62 @@ const Minitool_1 = ({
 
 	const [activeTool, setActiveTool] = useState('none');
 
+	const [isFormActive, setIsFormActive] = useState(false);
 
 	//Button state and data management
 	const [checked, setChecked] = useState('normal');
-	const [data, setData] = useState(initialData);
-	const [originalData] = useState(initialData);
-	const maxXvalue = graph_config.stepValue * graph_config.noteOfSections;
 
+	const data = useSharedValue(initialData);
+	const [originalData, setOriginalData] = useState(data.value);
+	
+	useEffect(() => {
+			const handleAdditionalData = () => {
+				const loaded = [];
+	
+				Object.keys(localStorage).forEach((key) => {
+					try {
+						const item = JSON.parse(localStorage.getItem(key));
+						if (item && typeof item === "object" && item.value && item.label) {
+							loaded.push({ value: item.value, label: item.label });
+						}
+					} catch (e) {
+						console.warn("Invalid JSON in localStorage:", key);
+					}
+				});
+	
+				loaded.length === 0 ? data.value = initialData : data.value = loaded;
+			}
+	
+			handleAdditionalData();
+			setOriginalData(data.value);
+	
+			localStorage.clear();
+		}, [isFormActive])
+	
+	const maxXvalue = graph_config.stepValue * graph_config.noteOfSections;
 	 const xScale = useMemo(
     () => scaleLinear().domain([0, maxXvalue]).range([0 + graph_config.shiftX, graph_config.width + graph_config.shiftX]),
     [maxXvalue, graph_config.width]
   	);
 
-	//Sorted by Label
+	//Sorted by Label - CHANGED !!!!!!!!!!
 	const sortByLabel = () => {
-	  const sortedData = [...data].sort((a, b) => a.label.localeCompare(b.label));
-	  setData(sortedData);
-	  setChecked('label'); 
+	  const sortedData = [...data.value].sort((a, b) => a.label.localeCompare(b.label));
+	  data.value = (sortedData);
+	  setChecked('label');
 	};
-	//Sorted by Values
+	//Sorted by Values - CHANGED !!!!!!!!!!
 	const sortByValue = () => {
-		const sortedData = [...data].sort((a,b) => a.value - b.value);
-		setData(sortedData);
+		const sortedData = [...data.value].sort((a,b) => a.value - b.value);
+		data.value = (sortedData);
 		setChecked('value');
 	}
-	//Back to unsorted data
+	//Back to unsorted data - CHANGED !!!!!!!!!!
 	const resetData = () => {
-		setData(originalData);
+		data.value = (originalData);
 		setChecked('normal'); 
-	};
+	};	
+	
 
 	
 	
@@ -159,7 +188,8 @@ const Minitool_1 = ({
 		
     let count = 0;
 
-    initialData.forEach((el) => {
+		//!!! CHANGED !!!
+    data.value.forEach((el) => {
       if (el.value >= low && el.value <= up) {
         count++;
       }
@@ -253,7 +283,7 @@ const Minitool_1 = ({
 	const Chart = <View style={{ height: graph_config.height + 110 }}>
 		<BarChart
 			//Data for the chart
-			data={data.map(item => {
+			data={data.value.map(item => {
           // The value of the bar is its 'end' for horizontal bars
           const barEndValue = item.value;
 
@@ -308,6 +338,21 @@ const Minitool_1 = ({
 	const default_length = graph_config.height + 155;
 	const [activeLength, setActiveLength] = useState(graph_config.height + 155);
 	const tabs = [
+		 <CustomButton
+			title={'Add data'}
+			hadlePress={() => {
+        setIsFormActive(true);
+      }}
+			containerStyles = "bg-sky-400/75 w-full m-4"
+		/>,
+    <CustomButton
+			title={'Reset data'}
+			hadlePress={() => {
+        data.value = initialData;
+        setOriginalData(initialData);
+      }}
+			containerStyles = "bg-sky-400/75 w-full m-4"
+		/>,
 		<CustomButton
 			title={'Value tool'}
 			hadlePress={() => {
@@ -348,6 +393,7 @@ const Minitool_1 = ({
 
 	return (
 		<GestureHandlerRootView>
+			 {isFormActive ? (<CustomDataForm formHandler={setIsFormActive} />) : null}
 				<ScrollView style={styles.AndroidSafeArea}>
 						{/*Main label*/}
 						<Text style={styles.text}>Life Span of Batteries</Text>
@@ -375,14 +421,14 @@ const Minitool_1 = ({
 											y1={30}
 											x2={animatedX}
 											y2={graph_config.height + 120}
-											stroke="#b58df1"
+											stroke="#000099"
 											strokeWidth="3"
 										/>
 										<AnimatedSvgText
 											x={animatedX}
 											y={30}
-											fontSize={12}
-											fill={'#000'}
+											fontSize={20}
+											fill={'#000099'}
 										>
 											{xScale.invert(animatedX.value - 15).toFixed(0) - offset}
 										</AnimatedSvgText>
@@ -567,7 +613,9 @@ const styles = StyleSheet.create({
 	gestureButton:{
 		width: 30, 
 		height: 30, 
-		backgroundColor: '#b58df1', 
+		backgroundColor: '#0080ff',
+		borderColor: '#000099',
+		borderWidth: 2, 
 		borderRadius: 20,
 	},
 	//--------------------

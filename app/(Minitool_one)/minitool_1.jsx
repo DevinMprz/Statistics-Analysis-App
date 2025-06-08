@@ -34,6 +34,7 @@ const initialData = [
 ];
 
 const  {width, height} = Dimensions.get('window');
+const platform = Platform.OS;
 
 const Minitool_1 = ({
 	graph_config = {
@@ -48,10 +49,10 @@ const Minitool_1 = ({
 		noteOfSections: Platform.OS !== 'android' && Platform.OS !== 'ios' ? 12 : 6,
 		stepValue: Platform.OS === 'web' ? 14 : 28,
 	},
-	offset = Platform.OS === 'web' ? 3 : 20,
+	offset = Platform.OS === 'web' ? 3 : 23,
 }) => {
  const mainContainer = {
-		height: graph_config.height + 200,
+		height: graph_config.height + 180,
 		width	: graph_config.width + 190,
 	};
 
@@ -299,13 +300,7 @@ const Minitool_1 = ({
             frontColor: frontColor,
           };
         })}
-			// data={data.map(item => {
-      //       return {
-      //         ...item,
-      //         frontColor: item.label === 'Always Ready' ? '#ffff00' : '#0099ff'
-      //       };
-          
-      // })}
+		
 
 			//Chart main settings	
 			height={graph_config.height}
@@ -334,6 +329,7 @@ const Minitool_1 = ({
 	</View>;
 	
 	const default_length = graph_config.height + 155;
+	const default_length_for_mobile = graph_config.height + 155;
 	const [activeLength, setActiveLength] = useState(graph_config.height + 155);
 	const tabs = [
 		<CustomButton
@@ -342,7 +338,7 @@ const Minitool_1 = ({
 				if(activeTool === 'none'){
 					setActiveTool('value');
 				}else if(activeTool === 'range'){
-					setActiveLength(default_length + 30);
+					setActiveLength(default_length + 10);
 					setActiveTool('both');
 				}else if(activeTool === 'both'){
 					setActiveTool('range');
@@ -359,7 +355,7 @@ const Minitool_1 = ({
 				if(activeTool === 'none'){
 					setActiveTool('range');
 				}else if(activeTool === 'value'){
-					setActiveLength(default_length + 30);
+					setActiveLength(default_length + 10);
 					setActiveTool('both');
 				}else if(activeTool === 'both'){
 					setActiveTool('value');
@@ -381,7 +377,13 @@ const Minitool_1 = ({
 						{/*Main label*/}
 						<Text style={styles.text}>Life Span of Batteries</Text>
 					 
-						<View style={{height: height * 0.85 , width: width, margin: 0, flexDirection: 'row'}}>
+						<View style={{
+							height: platform === 'web' ? height * 0.85 : height * 0.9 , 
+							width: width, 
+							margin: 0, 
+							flexDirection: platform === 'web' ? 'row': 'column', 
+							}}
+							>
 							{/*Main container for chart and two functions: separator and counter*/}	
 							<View style ={mainContainer}>
 
@@ -478,13 +480,15 @@ const Minitool_1 = ({
 							)}
 							
 							{(activeTool === 'both') && (<View style={styles.gestureView}>
-								<View style={styles.gestureView}>
+								<View style={{
+									height: 20,
+								}}>
 									<GestureDetector gesture={pan}>
 										<Animated.View style ={[styles.gestureButton, separatorMovement]}/>
 									</GestureDetector>
 								</View>
 								<View style={styles.gestureView}>
-									<View style={{flexDirection: 'row', height: 30, margin: 0}}>
+									<View style={{flexDirection: 'row', height: 20, margin: 0}}>
 										<GestureDetector gesture={secondButtonPan}>
 											<Animated.View style ={[styles.counterAdditionalButton, counterSecondButtonMovement]}/>
 										</GestureDetector>
@@ -492,7 +496,7 @@ const Minitool_1 = ({
 											<Animated.View style ={[styles.counterAdditionalButton, counterThirdButtonMovement]}/>
 										</GestureDetector>
 									</View>
-									<View style={{height: 30}}>
+									<View style={{height: 20}}>
 										<GestureDetector gesture={mainCounterPan}>
 											<Animated.View style={[styles.counterMainButton, counterMainMovement]} />
 										</GestureDetector>	
@@ -504,8 +508,9 @@ const Minitool_1 = ({
 							</View> 
 
 							<View style={{
-								height: graph_config.height + 190,display: "flex", 
-								flexDirection: "column", 
+								height: platform === 'web' ? graph_config.height + 190 : 100,
+								display: 'flex', 
+								flexDirection: platform === 'web' ? 'column' : 'row', 
 								alignItems: "center", 
 								justifyContent: "space-evenly", 
 								}}>
@@ -543,11 +548,11 @@ const Minitool_1 = ({
 						</View>
 										
 					
-						<CustomTabBar
-							customTabs={tabs}
-						/> 
-
 				</ScrollView>
+				<CustomTabBar
+						customTabs={tabs}
+						platform={platform}
+					/> 
 		</GestureHandlerRootView>		  		
 )}
 

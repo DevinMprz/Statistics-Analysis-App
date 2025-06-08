@@ -1,12 +1,16 @@
-import { View, Text } from "react-native";
-import React from "react";
+import React from 'react';
+import { SafeAreaView, ScrollView } from 'react-native';
+import SpeedTrapMinitool from './_layout';
+//import { dataBefore, dataAfter } from './_data';
 
-const minitool_2 = () => {
+
+export default function minitool_2() {
   return (
-    <View>
-      <Text>minitool_2</Text>
-    </View>
+    <SafeAreaView style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={{ alignItems: 'center' }}>
+        <SpeedTrapMinitool data={dataBefore} />
+        <SpeedTrapMinitool data={dataAfter} />
+      </ScrollView>
+    </SafeAreaView>
   );
-};
-
-export default minitool_2;
+}

@@ -1,165 +1,306 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
-import Svg, { G, Circle, Line, Text as SvgText } from 'react-native-svg';
+import { View, Text, StyleSheet } from 'react-native';
+import Svg, { G, Circle, Line, Text as SvgText, Rect } from 'react-native-svg';
 import { scaleLinear } from 'd3-scale';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 
-const { width: screenWidth } = Dimensions.get('window');
-const chartHeight = 300;
-const margins = { top: 20, bottom: 30, left: 40, right: 20 };
-const innerWidth = screenWidth - margins.left - margins.right - 32; // account for horizontal padding
+// Default settings with toggle options
+const defaultSettings = {
+  width: 300,
+  height: 100,
+  data: null,
+  dotRadius: 4,
+  dotColor: "blue",
+  thresholdColor: "red",
+  axisColor: "black",
+  margins: { top: 20, bottom: 30, left: 40, right: 20 },
+  enablePopup: false,     // Toggle for dot value popup
+  enableThreshold: true   // Toggle for movable threshold line
+};
 
-const data = [
-  1,2,3,4,5,6,7,8,9,10,
-  11,12,13,14,15,16,17,18,19,20,
-  21,22,23,24,25,26,27,28,29,30,
-  31,32,33,34,35,36,37,38,39,40,
-  41,42,43,44,45,46,47,48,49,50,
+// Temporary test dataset embedded directly
+const testData = [
+  100,100,100,100,
+  103,105,105,
+  110,110,
+  90,95,115,120,
+  150,150,150,150,150,
+  155,155,
+  80,85,160,165,170,
+  130,130,130,130,130,130,
+  50,50,300,300,
 ];
 
-// Prepare stacked dot data
-const computeScatterData = (data) => {
+// Improved collision-avoiding scatter data computation
+const computeScatterData = (data, xScale, dotRadius) => {
+  if (!data || !data.length) return [];
+  
+  // First get the stacked duplicates
   const counts = {};
-  return data.map((value) => {
+  const basicScatter = data.map((value) => {
     counts[value] = (counts[value] || 0) + 1;
     return { value, index: counts[value] };
   });
+  
+  // Sort by x-position for collision detection
+  const sortedDots = [...basicScatter].sort((a, b) => a.value - b.value);
+  
+  // Calculate minimum distance between dots to avoid collision
+  const minDistance = dotRadius * 2;
+  
+  // Calculate adjusted levels to avoid collisions
+  const adjustedDots = [];
+  
+  sortedDots.forEach((dot) => {
+    const dotX = xScale(dot.value);
+    let level = dot.index; // Start with the original stacking level
+    
+    // Check for collisions with previously positioned dots
+    let collision = true;
+    while (collision) {
+      collision = false;
+      
+      // Check against all previously positioned dots
+      for (let j = 0; j < adjustedDots.length; j++) {
+        const placedDot = adjustedDots[j];
+        const placedX = xScale(placedDot.value);
+        
+        // Check if the x distance is less than minimum required
+        const xDistance = Math.abs(dotX - placedX);
+        
+        // If dots are too close horizontally and at the same level
+        if (xDistance < minDistance && level === placedDot.level) {
+          // Move this dot up one level
+          level++;
+          collision = true;
+          break;
+        }
+      }
+    }
+    
+    // Add the dot with its adjusted level
+    adjustedDots.push({
+      value: dot.value,
+      index: dot.index,
+      level: level
+    });
+  });
+  
+  return adjustedDots;
 };
 
-const SpeedTrapMinitool = () => {
-  // threshold x-position (pixel)
-  const [thresholdX, setThresholdX] = useState(innerWidth / 2);
+const SpeedTrapMinitool = ({ settings = {} }) => {
+  // Merge provided settings with defaults
+  const config = { ...defaultSettings, ...settings };
+  const { 
+    width, 
+    height, 
+    data, 
+    dotRadius, 
+    dotColor, 
+    thresholdColor, 
+    axisColor,
+    margins,
+    enablePopup,
+    enableThreshold
+  } = config;
+  
+  // Use provided data or fallback to test data
+  const chartData = data || testData;
+  
+  // Dimensions
+  const svgWidth = width;
+  const chartHeight = height;
+  const innerWidth = svgWidth - margins.left - margins.right;
+  const baseline = chartHeight - margins.bottom;
 
-  const scatterData = useMemo(() => computeScatterData(data), [data]);
-  const maxIndex = Math.max(...scatterData.map(d => d.index));
-
-  // Scales: fixed domain 1 to 300 for x
-const xScale = useMemo(
-	() => scaleLinear().domain([Math.min(...data), Math.max(...data)]).range([0, innerWidth]),
-	[data]
-);
-  const yScale = useMemo(
-    () => scaleLinear().domain([0, maxIndex + 1]).range([chartHeight - margins.bottom, margins.top]),
-    [maxIndex]
+  // X scale: continuous
+  const minData = Math.min(...chartData);
+  const maxData = Math.max(...chartData);
+  const xScale = useMemo(
+    () => scaleLinear().domain([minData - 5, maxData + 5]).range([0, innerWidth]),
+    [minData, maxData, innerWidth]
   );
 
-  // Invert thresholdX pixel to data value
-  const thresholdValue = xScale.invert(thresholdX);
+  // Fixed dot radius and vertical gap
+  const levelGap = dotRadius * 2 + 2;
 
-  // Counts
-  const leftCount = data.filter((v) => v <= thresholdValue).length;
-  const rightCount = data.length - leftCount;
+  // Compute scatter with collision avoidance
+  const scatterData = useMemo(() => 
+    computeScatterData(chartData, xScale, dotRadius),
+    [chartData, xScale, dotRadius]
+  );
 
-  // Define pan gesture using new API
-  const panGesture = Gesture.Pan()
-    .onUpdate((e) => {
-      let x = e.x - margins.left - 16;
-      if (x < 0) x = 0;
-      if (x > innerWidth) x = innerWidth;
-      setThresholdX(x);
-    });
+  // Find the maximum level for ensuring proper chart height
+  const maxLevel = Math.max(...scatterData.map(d => d.level || 1));
 
-	const xAxisTicks = useMemo(() => {
-    const minVal = Math.min(...data);
-    const maxVal = Math.max(...data);
-    const step = Math.ceil((maxVal - minVal) / 6); // Aim for ~6 ticks
+  // Only calculate threshold-related values if threshold is enabled
+  const [thresholdX, setThresholdX] = useState(innerWidth / 2);
+  const thresholdValue = enableThreshold ? xScale.invert(thresholdX) : 0;
+
+  // Counts on each side (only if threshold is enabled)
+  const leftCount = enableThreshold ? chartData.filter((v) => v <= thresholdValue).length : 0;
+  const rightCount = enableThreshold ? chartData.length - leftCount : 0;
+
+  // Generate x-axis tick values - about 5-7 ticks
+  const xAxisTicks = useMemo(() => {
+    const range = maxData - minData;
+    const tickCount = 5; // Aim for 5 ticks
+    const step = Math.ceil(range / (tickCount - 1));
+    const roundedStep = Math.ceil(step / 10) * 10; // Round to nearest 10
+    
     const ticks = [];
-    for (let i = minVal; i <= maxVal; i += step) {
-      ticks.push(i);
+    let current = Math.floor(minData / 10) * 10; // Round down to nearest 10
+    
+    while (current <= maxData + 5) {
+      ticks.push(current);
+      current += roundedStep;
     }
-    // Ensure the max value is included
-    if (ticks[ticks.length - 1] < maxVal) {
-      ticks.push(maxVal);
-    }
+    
     return ticks;
-  }, [data]);
+  }, [minData, maxData]);
 
+  // Pan gesture for threshold line (only create if enabled)
+  const panGesture = enableThreshold 
+    ? Gesture.Pan().onUpdate((e) => {
+        let x = e.x - margins.left;
+        x = Math.max(0, Math.min(x, innerWidth));
+        setThresholdX(x);
+      })
+    : Gesture.Pan(); // Empty gesture if disabled
 
-return (
-  <View style={styles.container}>
-      <View style={styles.countsRow}>
-        <Text style={styles.countText}>Left: {leftCount}</Text>
-        <Text style={styles.countText}>Right: {rightCount}</Text>
-      </View>
+  // State for tracking hovered dot
+  const [hoveredDot, setHoveredDot] = useState(null);
+
+  return (
+    <View style={styles.wrapper}>
+      {/* Only show counts if threshold is enabled */}
+      {enableThreshold && (
+        <View style={[styles.countsRow, { width: innerWidth }]}>  
+          <Text style={styles.countText}>Left: {leftCount}</Text>
+          <Text style={styles.countText}>Right: {rightCount}</Text>
+        </View>
+      )}
 
       <GestureDetector gesture={panGesture}>
-        <View>
-          <Svg width={screenWidth - 32} height={chartHeight + 20}> {/* Added height for axis labels */}
-            {/* Scatter plot dots */}
-            {scatterData.map((d, i) => {
-              const cx = xScale(d.value) + margins.left;
-              const cy = yScale(d.index);
-              return <Circle key={i} cx={cx} cy={cy} r={4} fill="blue" />;
-            })}
-
-            {/* Threshold line */}
-            <Line
-              x1={thresholdX + margins.left}
-              y1={margins.top}
-              x2={thresholdX + margins.left}
-              y2={chartHeight - margins.bottom}
-              stroke="red"
-              strokeWidth={2}
-            />
-
-            <SvgText x={thresholdX + margins.left + 4} y={margins.top + 12} fontSize={12} fill="red">
-              {thresholdValue.toFixed(1)}
-            </SvgText>
-
-            {/* X-axis line */}
-            <Line
-              x1={margins.left}
-              y1={chartHeight - margins.bottom}
-              x2={innerWidth + margins.left}
-              y2={chartHeight - margins.bottom}
-              stroke="black"
-              strokeWidth={1}
-            />
-
+        <Svg width={svgWidth} height={chartHeight + margins.top + 20}>
+          <G x={margins.left}>
             {/* X-axis ticks and labels */}
             {xAxisTicks.map((tick, i) => (
               <G key={`tick-${i}`}>
                 <Line
-                  x1={xScale(tick) + margins.left}
-                  y1={chartHeight - margins.bottom}
-                  x2={xScale(tick) + margins.left}
-                  y2={chartHeight - margins.bottom + 5}
-                  stroke="black"
+                  x1={xScale(tick)}
+                  y1={baseline}
+                  x2={xScale(tick)}
+                  y2={baseline + 5}
+                  stroke={axisColor}
                   strokeWidth={1}
                 />
                 <SvgText
-                  x={xScale(tick) + margins.left}
-                  y={chartHeight - margins.bottom + 16}
+                  x={xScale(tick)}
+                  y={baseline + 15}
                   fontSize={10}
-                  fill="black"
+                  fill={axisColor}
                   textAnchor="middle"
                 >
                   {tick}
                 </SvgText>
               </G>
             ))}
-          </Svg>
-        </View>
+            
+            {/* Dots with collision avoidance */}
+            {scatterData.map((d, i) => (
+              <Circle
+                key={i}
+                cx={xScale(d.value)}
+                cy={baseline - (d.level - 1) * levelGap}
+                r={dotRadius}
+                fill={dotColor}
+                onPress={enablePopup ? () => setHoveredDot(d) : undefined}
+              />
+            ))}
+
+            {/* Popup for hovered dot - only if enabled */}
+            {enablePopup && hoveredDot && (
+              <G>
+                <Rect
+                  x={xScale(hoveredDot.value) - 25}
+                  y={baseline - (hoveredDot.level - 1) * levelGap - 30}
+                  width={50}
+                  height={20}
+                  fill="rgba(0,0,0,0.7)"
+                  rx={5}
+                  ry={5}
+                />
+                <SvgText
+                  x={xScale(hoveredDot.value)}
+                  y={baseline - (hoveredDot.level - 1) * levelGap - 16}
+                  fontSize={12}
+                  fill="white"
+                  textAnchor="middle"
+                >
+                  {hoveredDot.value}
+                </SvgText>
+              </G>
+            )}
+
+            {/* Threshold Line & Label - only if enabled */}
+            {enableThreshold && (
+              <>
+                <Line
+                  x1={thresholdX}
+                  y1={margins.top}
+                  x2={thresholdX}
+                  y2={baseline}
+                  stroke={thresholdColor}
+                  strokeWidth={2}
+                />
+                <SvgText
+                  x={thresholdX + 4}
+                  y={margins.top + 12}
+                  fontSize={12}
+                  fill={thresholdColor}
+                >
+                  {thresholdValue.toFixed(1)}
+                </SvgText>
+              </>
+            )}
+
+            {/* X-axis line */}
+            <Line
+              x1={0}
+              y1={baseline}
+              x2={innerWidth}
+              y2={baseline}
+              stroke={axisColor}
+              strokeWidth={1}
+            />
+          </G>
+        </Svg>
       </GestureDetector>
     </View>
-);
+  );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    padding: 16,
+  wrapper: {
     alignItems: 'center',
+    padding: 16,
   },
   countsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: innerWidth,
     marginBottom: 8,
   },
   countText: {
     fontSize: 14,
     fontWeight: 'bold',
   },
+  popupText: {
+    color: 'white',
+    fontSize: 12,
+    textAlign: 'center',
+  }
 });
 
 export default SpeedTrapMinitool;

@@ -1,11 +1,12 @@
 import React from "react";
-import { SafeAreaView, View, Text } from "react-native";
+import { SafeAreaView, View, Text, ScrollView } from "react-native";
 import {
-  GestureHandlerRootView,
-  ScrollView,
+  GestureHandlerRootView
 } from "react-native-gesture-handler";
-import { SpeedTrapMinitool } from "./_layout"; // Import as named export
+import { Minitool_2_chart } from "./minitool_2_components/minitool_2_chart"; // Import as named export
 import { dataBefore, dataAfter } from "../../data/_data";
+
+import Animated from 'react-native-reanimated';
 
 export default function minitool_2() {
   return (
@@ -26,9 +27,9 @@ export default function minitool_2() {
               Speed Trap Test
             </Text>
           </View>
-          <View>
+          <Animated.View>
             {/* Pass props directly instead of nested in settings */}
-            <SpeedTrapMinitool
+            <Minitool_2_chart
               width={400}
               height={100}
               dotRadius={5}
@@ -36,9 +37,9 @@ export default function minitool_2() {
               data={dataBefore}
               enablePopup={false}
             />
-          </View>
-          <View>
-            <SpeedTrapMinitool
+          </Animated.View>
+          <Animated.View>
+            <Minitool_2_chart
               width={400}
               height={100}
               dotRadius={5}
@@ -46,7 +47,7 @@ export default function minitool_2() {
               data={dataAfter}
               enablePopup={false}
             />
-          </View>
+          </Animated.View>
         </ScrollView>
       </SafeAreaView>
     </GestureHandlerRootView>

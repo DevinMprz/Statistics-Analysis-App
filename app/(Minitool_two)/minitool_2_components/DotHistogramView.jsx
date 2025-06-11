@@ -134,6 +134,7 @@ function DotHistogramView(settings) {
     xAxisStep,
     initialIntervalWidth,
     chartName, // New prop for chart name
+    xDomain, // <--- Added xDomain to destructuring
   } = config;
 
   // Separate data for two charts
@@ -156,18 +157,18 @@ function DotHistogramView(settings) {
     if (!dataset || dataset.length === 0) {
       return <Text key={keyPrefix}>No data for {chartTitle}</Text>;
     }
-    const minData = Math.min(...dataset);
-    const maxData = Math.max(...dataset);
+    // const minData = Math.min(...dataset); // No longer needed here
+    // const maxData = Math.max(...dataset); // No longer needed here
 
     // Use config.height directly for chart area calculation consistency
     const fixedChartHeight = height; // height from config
 
     // Adjust domain to ensure it covers min and max data points adequately
-    const domainMin = minData - (intervalWidth > 0 ? intervalWidth * 0.5 : 5);
-    const domainMax = maxData + (intervalWidth > 0 ? intervalWidth * 0.5 : 5);
+    // const domainMin = minData - (intervalWidth > 0 ? intervalWidth * 0.5 : 5); // No longer needed
+    // const domainMax = maxData + (intervalWidth > 0 ? intervalWidth * 0.5 : 5); // No longer needed
 
     const xScale = scaleLinear()
-      .domain([domainMin, domainMax])
+      .domain(xDomain ? [xDomain.min, xDomain.max] : [0, 100]) // Use xDomain prop
       .range([0, innerWidth]);
 
     const scatterData = computeScatterData(dataset, xScale, dotRadius);
@@ -182,52 +183,46 @@ function DotHistogramView(settings) {
     const intervalBins = computeIntervalBins(
       dataset,
       intervalWidth,
-      minData,
-      maxData
+      xDomain ? xDomain.min : 0, // Use xDomain.min for interval calculation
+      xDomain ? xDomain.max : 100 // Use xDomain.max for interval calculation
     );
 
     const xAxisTicks = useMemo(() => {
+      const [currentMinData, currentMaxData] = xScale.domain(); // Get domain from shared scale
+
       if (xAxisStep !== null && xAxisStep > 0) {
         const ticksArray = [];
-        // Ensure current starts at or before minData, aligned to xAxisStep
-        let current = Math.floor(minData / xAxisStep) * xAxisStep;
-        if (current > minData) {
-          // If minData is 103 and step is 5, first tick could be 100 or 105.
-          current -= xAxisStep; // Ensure we include a tick at or before minData
+        let current = Math.floor(currentMinData / xAxisStep) * xAxisStep;
+        if (current > currentMinData) {
+          // Corrected condition
+          current -= xAxisStep;
         }
-        // Ensure the loop covers up to maxData, potentially one step beyond for full coverage
         while (
           current <=
-          maxData + (maxData % xAxisStep !== 0 ? xAxisStep : 0)
+          currentMaxData + (currentMaxData % xAxisStep !== 0 ? xAxisStep : 0)
         ) {
           ticksArray.push(current);
           if (current + xAxisStep <= current && xAxisStep > 0) {
-            // Avoid infinite loop if step is too small or zero
             console.warn(
               "Potential infinite loop in xAxisTicks generation due to xAxisStep value."
             );
             break;
           }
           current += xAxisStep;
-          if (ticksArray.length > 200) break; // Safety break for too many ticks
+          if (ticksArray.length > 200) break;
         }
-        // Add maxData if it's not already a tick and not too close to the last tick
-        if (
-          !ticksArray.includes(maxData) &&
-          (ticksArray.length === 0 ||
-            maxData > ticksArray[ticksArray.length - 1] + xAxisStep / 2)
-        ) {
-          // ticksArray.push(maxData); // Decided against adding maxData explicitly if not a step multiple
-        }
-        return ticksArray.length > 0 ? ticksArray : xScale.ticks(5); // Fallback if array is empty
+        return ticksArray.length > 0 ? ticksArray : xScale.ticks(5);
       } else {
         const numTicks =
-          dataset.length > 0
-            ? Math.max(3, Math.min(10, Math.floor(dataset.length / 5)))
-            : 1; // Adjusted divisor for potentially more ticks
+          // dataset.length > 0 // dataset.length is not relevant for shared domain ticks
+          // For a shared domain, basing ticks on one dataset's length might be misleading.
+          // Consider a fixed number or a calculation based on the domain range.
+          // ? Math.max(3, Math.min(10, 5)) // Example: fixed 5 ticks
+          // : 1;
+          5; // Default to 5 ticks for shared domain if no step provided
         return xScale.ticks(numTicks);
       }
-    }, [xScale, xAxisStep, minData, maxData, dataset.length, innerWidth]); // Added innerWidth and dataset.length
+    }, [xScale, xAxisStep, innerWidth]); // Removed dataset.length as dependency for shared domain
 
     return (
       <View key={keyPrefix} style={styles.chartInstanceContainer}>
@@ -342,181 +337,122 @@ function DotHistogramView(settings) {
     if (!isNaN(numValue) && numValue > 0) {
       setIntervalWidth(numValue);
     } else if (text === "") {
-      setIntervalWidth(defaultSettings.initialIntervalWidth); // Or some other default
+      setIntervalWidth(0);
     }
   };
 
   return (
-    <Animated.View style={styles.container}>
-      {/* Legend Toggle and Content */}
-      <TouchableOpacity
-        onPress={() => setIsLegendOpen(!isLegendOpen)}
-        style={styles.legendToggle}
-      >
-        <Text style={styles.legendToggleText}>
-          {isLegendOpen ? "▼" : "►"} What is this module about?
-        </Text>
-      </TouchableOpacity>
-      {isLegendOpen && (
-        <View style={styles.legendContent}>
-          <Text style={styles.legendTitle}>Speed Trap Analysis</Text>
-          <Text style={styles.legendText}>
-            <Text style={styles.legendTextBold}>What is this?</Text> This chart
-            shows how many cars were recorded at different speeds. The green
-            dots/bars represent speeds before a traffic calming measure (like a
-            new speed sign), and the pink dots/bars show speeds two months
-            later.
-          </Text>
-          <Text style={styles.legendText}>
-            <Text style={styles.legendTextBold}>Why is it useful?</Text> By
-            comparing the "before" and "after" charts, you can see if the
-            traffic calming measure was effective in reducing vehicle speeds.
-            Look for shifts in where most of the dots are clustered.
-          </Text>
-          <Text style={styles.legendText}>
-            <Text style={styles.legendTextBold}>What can you do?</Text>
-            {"\n"}- Adjust the{" "}
-            <Text style={styles.legendTextBold}>'Interval Width'</Text> to group
-            speeds into wider or narrower bins. This can help you see different
-            patterns in the data.
-            {"\n"}- Toggle{" "}
-            <Text style={styles.legendTextBold}>'Show Dots'</Text> to see each
-            individual car's speed or hide them to focus on the interval counts.
-            {"\n"}- Toggle{" "}
-            <Text style={styles.legendTextBold}>'Show Intervals'</Text> to see
-            the vertical lines marking the speed groups and the count of cars in
-            each group.
-          </Text>
-        </View>
-      )}
+    <View style={styles.container}>
+      {/* Individual chart rendering */}
+      {renderChart(chartDataBefore, "blue", "chart-before", "Before")}
+      {renderChart(chartDataAfter, "red", "chart-after", "After")}
 
-      {/* Render two charts */}
-      {renderChart(
-        chartDataBefore,
-        "green",
-        "before",
-        "Vehicle Speeds - April 2002"
-      )}
-      {renderChart(
-        chartDataAfter,
-        "pink",
-        "after",
-        "Vehicle Speeds - Two months later"
-      )}
-
-      {/* Controls moved under the charts */}
-      <View style={styles.controlsContainer}>
-        <View style={styles.controlRowInput}>
-          <Text style={styles.controlLabel}>Interval Width: </Text>
-          <TextInput
-            style={styles.input}
-            keyboardType="numeric"
-            value={inputValue}
-            onChangeText={handleIntervalWidthChange}
-            placeholder={defaultSettings.initialIntervalWidth.toString()}
-          />
-        </View>
-        <View style={styles.controlRow}>
-          <Text>Show Dots: </Text>
-          <Switch value={showDots} onValueChange={setShowDots} />
-        </View>
-        <View style={styles.controlRow}>
-          <Text>Show Intervals: </Text>
-          <Switch value={showIntervals} onValueChange={setShowIntervals} />
-        </View>
+      {/* Interval Width Control */}
+      <View style={styles.controlContainer}>
+        <Text style={styles.label}>Interval Width:</Text>
+        <TextInput
+          style={styles.input}
+          value={inputValue}
+          onChangeText={handleIntervalWidthChange}
+          keyboardType="numeric"
+        />
+        <Button
+          title="Update Interval"
+          onPress={() => {
+            const numValue = parseInt(inputValue, 10);
+            if (!isNaN(numValue) && numValue > 0) {
+              setIntervalWidth(numValue);
+            }
+          }}
+        />
       </View>
-    </Animated.View>
+
+      {/* Legend Toggle - New Section */}
+      <View style={styles.legendContainer}>
+        <Text style={styles.legendTitle}>Legend</Text>
+        <TouchableOpacity
+          style={styles.legendToggle}
+          onPress={() => setIsLegendOpen(!isLegendOpen)}
+        >
+          <Text style={styles.legendToggleText}>
+            {isLegendOpen ? "Hide Legend" : "Show Legend"}
+          </Text>
+        </TouchableOpacity>
+        {isLegendOpen && (
+          <View style={styles.legendContent}>
+            <Text style={styles.legendItem}>
+              <Text style={styles.legendColor("blue")} /> Before
+            </Text>
+            <Text style={styles.legendItem}>
+              <Text style={styles.legendColor("red")} /> After
+            </Text>
+          </View>
+        )}
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    alignItems: "center",
+    flex: 1,
     padding: 10,
+    backgroundColor: "#fff",
   },
   chartInstanceContainer: {
-    // Style for each chart instance (SVG + Name)
     marginBottom: 20,
-    alignItems: "center",
   },
   chartInstanceName: {
-    // Style for the name above each chart
-    fontSize: 14,
     fontWeight: "bold",
     marginBottom: 5,
   },
-  controlsContainer: {
-    marginTop: 15, // Ensure controls are below the charts
-    width: "100%",
-    paddingHorizontal: 10,
-    alignItems: "center", // Center the control rows
-  },
-  controlRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
-    width: "80%", // Make control rows take a certain width to center them
-  },
-  controlRowInput: {
-    // Specific style for the input row for better alignment
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-    width: "80%",
-    justifyContent: "center", // Center the label and input
-  },
-  controlLabel: {
-    // Style for labels in control rows
-    marginRight: 5, // Space between label and input/switch
+  label: {
+    marginBottom: 5,
   },
   input: {
     borderWidth: 1,
     borderColor: "gray",
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    width: 70,
-    marginLeft: 10,
+    padding: 5,
+    marginBottom: 10,
+    width: 100,
   },
-  legendToggle: {
-    backgroundColor: "#e0e0e0",
-    paddingVertical: 10,
-    paddingHorizontal: 15,
-    borderRadius: 5,
-    marginVertical: 10,
-    alignItems: "center",
-    width: "90%",
+  controlContainer: {
+    marginBottom: 20,
   },
-  legendToggleText: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "navy",
-  },
-  legendContent: {
-    width: "90%",
-    padding: 15,
-    backgroundColor: "#f9f9f9",
-    borderRadius: 5,
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
+  legendContainer: {
+    marginTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: "gray",
+    paddingTop: 10,
   },
   legendTitle: {
-    fontSize: 18,
     fontWeight: "bold",
-    marginBottom: 10,
-    color: "navy",
-    textAlign: "center",
+    marginBottom: 5,
   },
-  legendText: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 8,
-    color: "#333",
+  legendToggle: {
+    backgroundColor: "#f0f0f0",
+    padding: 10,
+    borderRadius: 5,
+    alignItems: "center",
   },
-  legendTextBold: {
+  legendToggleText: {
+    color: "blue",
     fontWeight: "bold",
   },
+  legendContent: {
+    marginTop: 10,
+  },
+  legendItem: {
+    marginBottom: 5,
+  },
+  legendColor: (color) => ({
+    width: 10,
+    height: 10,
+    backgroundColor: color,
+    borderRadius: 5,
+    marginRight: 5,
+    display: "inline-block",
+  }),
 });
 
-export { DotHistogramView };
+export default DotHistogramView;

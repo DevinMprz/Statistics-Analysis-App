@@ -12,3 +12,67 @@ export const dataAfter = [
   53.0, 52.9, 52.8, 53.0, 53.2, 51.8, 51.7, 51.1, 51.1, 51.2, 51.3, 50.6, 50.4,
   50.3, 49.8, 49.7, 49.2, 49.1, 48.0,
 ];
+
+export const generateCholesterolData = (count, minVal, maxVal) => {
+  const data = [];
+  if (
+    typeof count !== "number" ||
+    count <= 0 ||
+    typeof minVal !== "number" ||
+    typeof maxVal !== "number" ||
+    minVal >= maxVal
+  ) {
+    console.warn(
+      "Invalid parameters for generateCholesterolData. Ensure count > 0, and minVal < maxVal."
+    );
+    return data;
+  }
+  for (let i = 0; i < count; i++) {
+    const randomNumber = Math.random() * (maxVal - minVal) + minVal;
+    data.push(parseFloat(randomNumber.toFixed(1)));
+  }
+  return data;
+};
+
+export const generateSpeedTrapData = (count, minVal, maxVal) => {
+  const data = [];
+  if (
+    typeof count !== "number" ||
+    count <= 0 ||
+    typeof minVal !== "number" ||
+    typeof maxVal !== "number" ||
+    minVal >= maxVal
+  ) {
+    console.warn(
+      "Invalid parameters for generateSpeedTrapData. Ensure count > 0, and minVal < maxVal."
+    );
+    return data;
+  }
+  for (let i = 0; i < count; i++) {
+    const randomNumber = Math.random() * (maxVal - minVal) + minVal;
+    data.push(Math.round(randomNumber)); // Speed data as integers
+  }
+  return data;
+};
+
+export const calculateCombinedExtent = (datasets) => {
+  let overallMin = Infinity;
+  let overallMax = -Infinity;
+
+  datasets.forEach((dataset) => {
+    if (!dataset || dataset.length === 0) return;
+    const currentMin = Math.min(...dataset);
+    const currentMax = Math.max(...dataset);
+    if (currentMin < overallMin) {
+      overallMin = currentMin;
+    }
+    if (currentMax > overallMax) {
+      overallMax = currentMax;
+    }
+  });
+
+  if (overallMin === Infinity || overallMax === -Infinity) {
+    return { min: 0, max: 100 }; // Default if no valid data
+  }
+  return { min: overallMin, max: overallMax };
+};

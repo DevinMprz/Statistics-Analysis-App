@@ -12,6 +12,8 @@ import { CholesterolLevelChart } from "./minitool_2_components/minitool_2_chart"
 import {
   dataBefore as cholesterolDataBefore,
   dataAfter as cholesterolDataAfter,
+  generateCholesterolData,
+  calculateCombinedExtent, // <--- Added import
 } from "../../data/_data"; // Adjusted path
 
 const screenWidth = Dimensions.get("window").width;
@@ -22,6 +24,20 @@ export default function CholesterolScreen() {
     screenWidth < SMALL_SCREEN_THRESHOLD
       ? screenWidth * 0.9
       : screenWidth * 0.8;
+
+  // Example usage of the new data generator:
+  const generatedCholesterolDataBefore = generateCholesterolData(300, 100, 300);
+  const generatedCholesterolDataAfter = generateCholesterolData(300, 100, 295);
+
+  // Calculate the combined extent for cholesterol data
+  const cholesterolExtent = calculateCombinedExtent([
+    generatedCholesterolDataBefore.length > 0
+      ? generatedCholesterolDataBefore
+      : cholesterolDataBefore,
+    generatedCholesterolDataAfter.length > 0
+      ? generatedCholesterolDataAfter
+      : cholesterolDataAfter,
+  ]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -34,10 +50,19 @@ export default function CholesterolScreen() {
             <CholesterolLevelChart
               width={cholesterolChartContainerWidth}
               height={180}
-              dataBefore={cholesterolDataBefore}
-              dataAfter={cholesterolDataAfter}
+              dataBefore={
+                generatedCholesterolDataBefore.length > 0
+                  ? generatedCholesterolDataBefore
+                  : cholesterolDataBefore
+              } // Or use generatedCholesterolDataBefore
+              dataAfter={
+                generatedCholesterolDataAfter.length > 0
+                  ? generatedCholesterolDataAfter
+                  : cholesterolDataAfter
+              } // Or use generatedCholesterolDataAfter
               dotRadius={5}
               chartName="Cholesterol Levels"
+              xDomain={cholesterolExtent} // <--- Pass the calculated extent
             />
           </View>
         </ScrollView>

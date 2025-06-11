@@ -1,4 +1,10 @@
-import React, { useState, useMemo, useCallback, useRef } from "react";
+import React, {
+  useState,
+  useMemo,
+  useCallback,
+  useRef,
+  useEffect,
+} from "react";
 import {
   View,
   Text,
@@ -115,28 +121,94 @@ function CholesterolLevelChart(settings) {
     enablePopup,
     xAxisStep,
     chartName,
+    xDomain,
   } = config;
 
   const [showData, setShowData] = useState(true);
-  const [boxCreationMode, setBoxCreationMode] = useState(false);
-  const [thresholdLines, setThresholdLines] = useState([]);
+  const [boxCreationMode, setBoxCreationMode] = useState(false); // Enables tap-to-add and visibility of thresholdLines
+  const [thresholdLines, setThresholdLines] = useState([]); // For manual draggable lines and static guide boxes
   const [draggingLineId, setDraggingLineId] = useState(null);
-  const [boxPlotMode, setBoxPlotMode] = useState(null); // null, 'two', 'four'
   const dragInitialXRef = useRef(0);
-  const [isLegendOpen, setIsLegendOpen] = useState(false); // Added for legend
+  const [isLegendOpen, setIsLegendOpen] = useState(false);
+
+  // New state for consolidated grouping feature
+  const [groupingType, setGroupingType] = useState("none"); // 'none', 'median', 'quartiles'
+  const [showGroupsAsStaticBoxes, setShowGroupsAsStaticBoxes] = useState(false);
+
+  const getGlobalXScale = useCallback(() => {
+    const svgChartWidth = width;
+    const innerChartWidth = svgChartWidth - margins.left - margins.right;
+    return scaleLinear()
+      .domain(xDomain ? [xDomain.min, xDomain.max] : [0, 100])
+      .range([0, innerChartWidth]);
+  }, [xDomain, width, margins]);
+
+  useEffect(() => {
+    const currentXScale = getGlobalXScale();
+    const [domainMin, domainMax] = currentXScale.domain();
+
+    // Start with current manual lines
+    let manualLines = thresholdLines.filter((l) => l.isDraggable === true);
+
+    let newLinesContent = [...manualLines];
+
+    if (groupingType !== "none" && showGroupsAsStaticBoxes) {
+      if (
+        isFinite(domainMin) &&
+        isFinite(domainMax) &&
+        domainMin <= domainMax
+      ) {
+        let guidesDataValues = [];
+        if (groupingType === "median") {
+          guidesDataValues = [
+            domainMin,
+            domainMin + 0.5 * (domainMax - domainMin),
+            domainMax,
+          ];
+        } else if (groupingType === "quartiles") {
+          guidesDataValues = [
+            domainMin,
+            domainMin + 0.25 * (domainMax - domainMin),
+            domainMin + 0.5 * (domainMax - domainMin),
+            domainMin + 0.75 * (domainMax - domainMin),
+            domainMax,
+          ];
+        }
+        const staticGuideLines = guidesDataValues.map((val, index) => ({
+          id: `static-${groupingType}-${index}-${Date.now()}`,
+          x: currentXScale(val),
+          isDraggable: false,
+        }));
+        newLinesContent = [...manualLines, ...staticGuideLines];
+      } else {
+        // Invalid domain for static guides, only keep manual lines
+        newLinesContent = [...manualLines];
+      }
+    }
+    // If not showing as static boxes, or groupingType is 'none', thresholdLines should only contain manual lines.
+    // The filtering of non-manual lines is implicitly handled by rebuilding from manualLines.
+
+    setThresholdLines(newLinesContent.sort((a, b) => a.x - b.x));
+  }, [groupingType, showGroupsAsStaticBoxes, getGlobalXScale]); // getGlobalXScale includes xDomain, width, margins
 
   const handleAddLineGlobal = useCallback(
     (tapXPosition) => {
       if (boxCreationMode) {
         const newId = Date.now();
-        // Add new line and sort immediately
-        setThresholdLines((prev) =>
-          [...prev, { id: newId, x: tapXPosition }].sort((a, b) => a.x - b.x)
-        );
+        const newLine = { id: newId, x: tapXPosition, isDraggable: true };
+
+        setThresholdLines((prevLines) => {
+          // Add new draggable line, keeping existing static or draggable lines
+          return [...prevLines, newLine].sort((a, b) => a.x - b.x);
+        });
+
+        // Adding a manual line implies manual mode, turns off automatic grouping display
+        // setGroupingType("none"); // MODIFIED: Removed this line to allow coexistence
+        // setShowGroupsAsStaticBoxes(false); // Keep this off to ensure useEffect correctly processes 'none' type
       }
     },
     [boxCreationMode]
-  ); // setThresholdLines is stable, not needed as dep
+  );
 
   const handleDragLineUpdateGlobal = useCallback((lineId, newXPosition) => {
     // Update position without sorting
@@ -168,14 +240,15 @@ function CholesterolLevelChart(settings) {
     const svgWidth = width; // Use the width prop directly for the SVG
     const innerWidth = svgWidth - margins.left - margins.right;
 
-    const minData = Math.min(...chartData);
-    const maxData = Math.max(...chartData);
+    // const minData = Math.min(...chartData); // No longer needed here
+    // const maxData = Math.max(...chartData); // No longer needed here
+
     const xScale = useMemo(
       () =>
         scaleLinear()
-          .domain([minData - 5, maxData + 5])
+          .domain(xDomain ? [xDomain.min, xDomain.max] : [0, 100]) // Use xDomain prop
           .range([0, innerWidth]),
-      [minData, maxData, innerWidth]
+      [xDomain, innerWidth] // Dependency on xDomain
     );
 
     const levelGap = dotRadius * 2 + 2;
@@ -216,19 +289,28 @@ function CholesterolLevelChart(settings) {
       })
       .runOnJS(true); // <--- ADD THIS
 
-    // Memoize boxPlotSeparators
+    // Memoize boxPlotSeparators for non-static-box guides
     const boxPlotSeparators = useMemo(() => {
-      if (!boxPlotMode) return [];
-      const stats = getQuartiles(chartData);
-      if (boxPlotMode === "two") return [stats.min, stats.median, stats.max];
-      if (boxPlotMode === "four")
+      if (showGroupsAsStaticBoxes || groupingType === "none") {
+        return []; // Don't show if static boxes are active or no grouping
+      }
+      const stats = getQuartiles(chartData); // Per-dataset calculation
+      if (groupingType === "median") {
+        return [stats.min, stats.median, stats.max];
+      }
+      if (groupingType === "quartiles") {
         return [stats.min, stats.q1, stats.median, stats.q3, stats.max];
+      }
       return [];
-    }, [chartData, boxPlotMode]);
+    }, [groupingType, showGroupsAsStaticBoxes, chartData]); // getQuartiles is stable
 
     // Original calculateAndRenderCountsInGaps function definition remains here
     const calculateAndRenderCountsInGaps = () => {
-      if (!boxCreationMode && thresholdLines.length === 0) return null;
+      // Counts should be shown if there are any lines present, regardless of mode.
+      if (thresholdLines.length === 0) {
+        // console.log(`[${datasetKey}] calculateAndRenderCountsInGaps: No threshold lines, returning null.`);
+        return null;
+      }
 
       const sortedUniqueLineXs = [
         ...new Set(thresholdLines.map((l) => l.x)),
@@ -237,7 +319,7 @@ function CholesterolLevelChart(settings) {
         .filter((v, i, a) => a.indexOf(v) === i)
         .sort((a, b) => a - b);
 
-      return allBoundariesX
+      const countsElements = allBoundariesX
         .slice(0, -1)
         .map((startX, idx) => {
           const endX = allBoundariesX[idx + 1];
@@ -267,63 +349,126 @@ function CholesterolLevelChart(settings) {
           return null;
         })
         .filter(Boolean);
+
+      // console.log(`[${datasetKey}] calculateAndRenderCountsInGaps: Returning ${countsElements?.length || 0} count elements.`);
+      return countsElements;
     };
 
     // Memoize the *result* of calling calculateAndRenderCountsInGaps
     const memoizedGapCounts = useMemo(() => {
-      // Dependencies should match those that affect the output of calculateAndRenderCountsInGaps
-      return calculateAndRenderCountsInGaps();
+      const result = calculateAndRenderCountsInGaps();
+      // console.log(`[${datasetKey}] memoizedGapCounts: Result has ${result?.length || 0} elements.`);
+      return result;
     }, [
-      boxCreationMode,
-      thresholdLines,
+      thresholdLines, // Primary dependency: if lines change, counts change
       chartData,
       xScale,
       innerWidth,
       axisColor,
       margins.top,
-      datasetKey /*, other dependencies of calculateAndRenderCountsInGaps if any */,
+      datasetKey,
+      // The visibility of counts is now solely determined by the presence of thresholdLines.
+      // boxCreationMode, showGroupsAsStaticBoxes, and groupingType are no longer direct dependencies here
+      // as their influence is on whether thresholdLines get populated, not directly on count visibility itself.
     ]);
 
     const xAxisTicksData = useMemo(() => {
-      const ticksArr = [];
-      if (xAxisStep !== null && xAxisStep > 0) {
-        let current = Math.floor(minData / xAxisStep) * xAxisStep;
-        while (current <= maxData + 5) {
-          // Ensure the last tick covers maxData if it's a step multiple
-          ticksArr.push(current);
-          if (
-            current + xAxisStep > maxData + 5 &&
-            current < maxData + 5 &&
-            !ticksArr.includes(maxData + 5)
-          ) {
-            // Heuristic: if the next step goes beyond maxData, but maxData is not yet included,
-            // consider adding a tick closer to maxData or ensure range covers it.
-            // For simplicity, the loop condition handles most cases.
-            // Consider if specific handling for the last tick is needed if it doesn't align.
+      const [domainMin, domainMax] = xScale.domain();
+      let generatedTicks = [];
+      const tolerance = 1e-9; // For floating point comparisons
+
+      if (
+        !isFinite(domainMin) ||
+        !isFinite(domainMax) ||
+        domainMin > domainMax + tolerance
+      ) {
+        return []; // Invalid domain
+      }
+      // Adjust domainMin and domainMax slightly for comparisons if they are extremely close
+      // This helps avoid issues if domainMin is like 0.9999999999999999 and domainMax is 1.0
+      const effectiveDomainMin = domainMin;
+      const effectiveDomainMax = domainMax;
+
+      if (Math.abs(effectiveDomainMin - effectiveDomainMax) < tolerance) {
+        return [effectiveDomainMin]; // Single point domain
+      }
+
+      if (xAxisStep !== null && xAxisStep > 0 && isFinite(xAxisStep)) {
+        for (let i = 0; ; ++i) {
+          // Ensure xAxisStep is positive to prevent infinite loops
+          const currentStep = Math.max(xAxisStep, tolerance);
+          const tickValue = effectiveDomainMin + i * currentStep;
+
+          if (tickValue > effectiveDomainMax + tolerance) {
+            break;
           }
-          current += xAxisStep;
-          // Safety break for very small xAxisStep to prevent infinite loops with floating point issues
-          if (ticksArr.length > 1000) break;
-        }
-        // Ensure the domain end is considered for a tick if not covered
-        if (
-          ticksArr.length > 0 &&
-          ticksArr[ticksArr.length - 1] < maxData &&
-          maxData - ticksArr[ticksArr.length - 1] > xAxisStep / 2
-        ) {
-          // This logic can be complex; d3.ticks is generally better for auto-generation.
-          // For manual step, ensure the range is well-covered or stick to simpler step logic.
+          generatedTicks.push(tickValue);
+          // Safety break
+          if (
+            i >
+              Math.abs(effectiveDomainMax - effectiveDomainMin) /
+                Math.max(currentStep, tolerance) +
+                2 &&
+            i > 200
+          ) {
+            // Increased safety limit
+            break;
+          }
         }
       } else {
-        // Dynamic calculation based on chartData.length
-        const numTicks = Math.max(
-          3,
-          Math.min(10, Math.ceil(chartData.length / 5) || 1)
-        );
-        return xScale.ticks(numTicks); // Auto ticks based on data length
+        // Ensure xScale.ticks() is called on a valid domain range
+        if (effectiveDomainMin <= effectiveDomainMax) {
+          generatedTicks = xScale.ticks(5); // Aim for 5 ticks
+        } else {
+          generatedTicks = [];
+        }
       }
-      return ticksArr;
-    }, [minData, maxData, xAxisStep, xScale, chartData.length]); // Added chartData.length
+
+      // Post-processing: Ensure domain min and max are included.
+      let finalTicks = [...generatedTicks];
+
+      if (
+        isFinite(effectiveDomainMin) &&
+        !finalTicks.some((t) => Math.abs(t - effectiveDomainMin) < tolerance)
+      ) {
+        finalTicks.push(effectiveDomainMin);
+      }
+      if (
+        isFinite(effectiveDomainMax) &&
+        !finalTicks.some((t) => Math.abs(t - effectiveDomainMax) < tolerance)
+      ) {
+        finalTicks.push(effectiveDomainMax);
+      }
+
+      finalTicks = [...new Set(finalTicks)]
+        .filter(
+          (tick) =>
+            isFinite(tick) &&
+            tick >= effectiveDomainMin - tolerance &&
+            tick <= effectiveDomainMax + tolerance
+        )
+        .sort((a, b) => a - b)
+        .map((tick) => {
+          if (Math.abs(tick - effectiveDomainMin) < tolerance)
+            return effectiveDomainMin;
+          if (Math.abs(tick - effectiveDomainMax) < tolerance)
+            return effectiveDomainMax;
+          return tick;
+        });
+
+      if (
+        finalTicks.length === 0 &&
+        isFinite(effectiveDomainMin) &&
+        isFinite(effectiveDomainMax) &&
+        effectiveDomainMin <= effectiveDomainMax
+      ) {
+        return [...new Set([effectiveDomainMin, effectiveDomainMax])].sort(
+          (a, b) => a - b
+        );
+      }
+
+      return finalTicks;
+    }, [xScale, xAxisStep]); // xScale now depends on xDomain
 
     return (
       <View style={styles.chartInstanceContainer} key={datasetKey}>
@@ -361,10 +506,13 @@ function CholesterolLevelChart(settings) {
                     fill={axisColor}
                     textAnchor="middle"
                   >
-                    {tick}
+                    {Math.round(tick)}
                   </SvgText>
                 </G>
               ))}
+
+              {/* Render the memoized gap counts */}
+              {memoizedGapCounts}
 
               {/* Dots */}
               {showData &&
@@ -404,49 +552,69 @@ function CholesterolLevelChart(settings) {
               )}
 
               {/* Render global threshold lines and their drag handles */}
-              {boxCreationMode &&
-                thresholdLines.map((line) => {
-                  const lineDragGesture = Gesture.Pan()
-                    .activeOffsetX([0, 0]) // Make drag activate with smaller horizontal movement
-                    .onBegin(() => {
-                      setDraggingLineId(line.id);
-                      dragInitialXRef.current = line.x;
-                    })
-                    .onUpdate((event) => {
-                      let newDragX =
-                        dragInitialXRef.current + event.translationX;
-                      newDragX = Math.max(0, Math.min(newDragX, innerWidth));
-                      handleDragLineUpdateGlobal(line.id, newDragX);
-                    })
-                    .onEnd(() => {
-                      setDraggingLineId(null);
-                      setThresholdLines((prevLines) =>
-                        [...prevLines].sort((a, b) => a.x - b.x)
-                      );
-                    })
-                    .runOnJS(true); // <--- ADD THIS
+              {thresholdLines.map((line) => {
+                const isStaticGuide = line.isDraggable === false;
+                const isManualLine = line.isDraggable === true;
 
-                  const handleSize = 12;
-                  // Position handleY so the square is below the x-axis tick labels.
-                  // X-axis labels are at y={baseline + 15}, fontSize={10}.
-                  // Top of square will be at baseline + 17.
-                  const handleY = baseline + 17;
+                const showThisStaticGuide =
+                  isStaticGuide && showGroupsAsStaticBoxes;
+                const showThisManualLine = isManualLine && boxCreationMode;
 
-                  return (
-                    <G key={`threshold-line-group-${line.id}-${datasetKey}`}>
-                      <Line
-                        x1={line.x}
-                        y1={margins.top - 10} // Extend line slightly above counts
-                        x2={line.x}
-                        // Extend line down to the bottom of the handle
-                        y2={handleY + handleSize}
-                        stroke={thresholdColor}
-                        strokeWidth={2}
-                      />
+                if (!showThisStaticGuide && !showThisManualLine) {
+                  return null; // Don't render this line if its conditions aren't met
+                }
+
+                // Gesture setup - only relevant for manual lines
+                const lineDragGesture = Gesture.Pan()
+                  .activeOffsetX([0, 0])
+                  .onBegin(() => {
+                    // This gesture is only attached if it's a manual line and boxCreationMode is on
+                    setDraggingLineId(line.id);
+                    dragInitialXRef.current = line.x;
+                  })
+                  .onUpdate((event) => {
+                    let newDragX = dragInitialXRef.current + event.translationX;
+                    newDragX = Math.max(0, Math.min(newDragX, innerWidth));
+                    handleDragLineUpdateGlobal(line.id, newDragX);
+                  })
+                  .onEnd(() => {
+                    setDraggingLineId(null);
+                    setThresholdLines((prevLines) =>
+                      [...prevLines].sort((a, b) => a.x - b.x)
+                    );
+                  })
+                  .runOnJS(true);
+
+                const handleSize = 12;
+                const handleY = baseline + 17; // Y-coordinate for the top of the drag handle
+
+                let lineY2Value;
+                let renderHandle = false;
+
+                if (showThisStaticGuide) {
+                  lineY2Value = baseline; // Static guides extend to the baseline
+                  renderHandle = false;
+                } else {
+                  // This means showThisManualLine is true
+                  lineY2Value = handleY + handleSize; // Manual lines extend to connect with their handle
+                  renderHandle = true;
+                }
+
+                return (
+                  <G key={`threshold-line-group-${line.id}-${datasetKey}`}>
+                    <Line
+                      x1={line.x}
+                      y1={margins.top - 10} // Top of the line
+                      x2={line.x}
+                      y2={lineY2Value} // Calculated y2 based on line type
+                      stroke={thresholdColor}
+                      strokeWidth={2}
+                    />
+                    {renderHandle && ( // Render handle only for manual lines in boxCreationMode
                       <GestureDetector gesture={lineDragGesture}>
-                        <Rect // Draggable Handle
+                        <Rect
                           x={line.x - handleSize / 2}
-                          y={handleY} // Use the new handleY
+                          y={handleY} // Position of the handle
                           width={handleSize}
                           height={handleSize}
                           fill={
@@ -460,25 +628,22 @@ function CholesterolLevelChart(settings) {
                           ry={2}
                         />
                       </GestureDetector>
-                      {/* Value label for the line on this specific chart */}
-                      <SvgText
-                        x={line.x + 4}
-                        y={margins.top - 2}
-                        fontSize={10}
-                        fill={thresholdColor}
-                        textAnchor="start"
-                      >
-                        {xScale.invert(line.x).toFixed(1)}
-                      </SvgText>
-                    </G>
-                  );
-                })}
+                    )}
+                    {/* Text label for the line's value */}
+                    <SvgText
+                      x={line.x + 4}
+                      y={margins.top - 2}
+                      fontSize={10}
+                      fill={thresholdColor}
+                      textAnchor="start"
+                    >
+                      {xScale.invert(line.x).toFixed(1)}
+                    </SvgText>
+                  </G>
+                );
+              })}
 
-              {/* Counts in Gaps */}
-              {/* Use the memoized result here */}
-              {boxCreationMode && memoizedGapCounts}
-
-              {/* Box Plot Separators */}
+              {/* Dashed lines for box plot separators (quartiles/median) */}
               {boxPlotSeparators.map((sepValue, i) => (
                 <G key={`sep-${datasetKey}-${i}`}>
                   <Line
@@ -581,44 +746,55 @@ function CholesterolLevelChart(settings) {
             value={boxCreationMode}
             onValueChange={(val) => {
               setBoxCreationMode(val);
-              if (val) setBoxPlotMode(null); // Turn off box plot if creating boxes
-              // Do not clear lines here, allow them to persist unless "Clear Boxes" is pressed
+              // If turning on boxCreationMode, it doesn't automatically change groupingType.
+              // If turning off, lines managed by thresholdLines (manual or static boxes) will hide.
             }}
           />
         </View>
         <View style={styles.controlRow}>
           <Button
-            title="Clear All Boxes"
-            onPress={() => setThresholdLines([])}
-            disabled={thresholdLines.length === 0}
+            title="Clear All Lines" // Renamed for clarity
+            onPress={() => {
+              setThresholdLines([]);
+              setGroupingType("none");
+              setShowGroupsAsStaticBoxes(false);
+              // boxCreationMode is not reset here, user can clear and then add new lines if it's on.
+            }}
+            disabled={thresholdLines.length === 0} // Disable if no lines to clear
           />
         </View>
         <View style={styles.controlRow}>
-          <Text style={styles.controlTextItem}>Groups: </Text>
+          <Text style={styles.controlTextItem}>Guides Type: </Text>
           <Button
             title="None"
             onPress={() => {
-              setBoxPlotMode(null);
-              if (boxCreationMode)
-                setThresholdLines(
-                  []
-                ); /* Clear lines if switching from active box mode */
+              setGroupingType("none");
+              // useEffect will handle cleaning up static lines from thresholdLines if showGroupsAsStaticBoxes was true
             }}
           />
           <Button
-            title="Two (Median)"
+            title="Median"
             onPress={() => {
-              setBoxPlotMode("two");
-              setBoxCreationMode(false);
-              setThresholdLines([]);
+              setGroupingType("median");
+              // useEffect will add/update static lines if showGroupsAsStaticBoxes is true
+              // or ensure only manual lines if showGroupsAsStaticBoxes is false
             }}
           />
           <Button
-            title="Four (Quartiles)"
+            title="Quartiles"
             onPress={() => {
-              setBoxPlotMode("four");
-              setBoxCreationMode(false);
-              setThresholdLines([]);
+              setGroupingType("quartiles");
+              // useEffect will add/update static lines if showGroupsAsStaticBoxes is true
+            }}
+          />
+        </View>
+        <View style={styles.controlRow}>
+          <Text style={styles.controlTextItem}>Show Guides as Boxes: </Text>
+          <Switch
+            value={showGroupsAsStaticBoxes}
+            onValueChange={(val) => {
+              setShowGroupsAsStaticBoxes(val);
+              // useEffect will handle updating thresholdLines based on new 'showGroupsAsStaticBoxes' value
             }}
           />
         </View>

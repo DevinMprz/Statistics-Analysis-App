@@ -1,12 +1,10 @@
-import { View, Text } from "react-native";
+import { Stack } from "expo-router";
 import React from "react";
 
-const Minitool_three_layout = () => {
+export default function MinitoolThreeLayout() {
   return (
-    <View>
-      <Text>Minitool_three_layout</Text>
-    </View>
+    <Stack>
+      <Stack.Screen name="minitool_3" options={{ title: "Minitool Three" }} />
+    </Stack>
   );
-};
-
-export default Minitool_three_layout;
+}

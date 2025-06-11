@@ -178,11 +178,13 @@ function CholesterolLevelChart(settings) {
 
     const [hoveredDot, setHoveredDot] = useState(null);
 
-    const tapGesture = Gesture.Tap().onEnd((event) => {
-      const tapXInG = event.x - margins.left;
-      const clampedTapX = Math.max(0, Math.min(tapXInG, innerWidth));
-      handleAddLineGlobal(clampedTapX);
-    });
+    const tapGesture = Gesture.Tap()
+      .onEnd((event) => {
+        const tapXInG = event.x - margins.left;
+        const clampedTapX = Math.max(0, Math.min(tapXInG, innerWidth));
+        handleAddLineGlobal(clampedTapX);
+      })
+      .runOnJS(true); // <--- ADD THIS
 
     const getSeparatorsForBoxPlot = () => {
       if (!boxPlotMode) return [];
@@ -324,21 +326,21 @@ function CholesterolLevelChart(settings) {
                   const lineDragGesture = Gesture.Pan()
                     .onBegin(() => {
                       setDraggingLineId(line.id);
-                      dragInitialXRef.current = line.x; // Store initial X of the line
+                      dragInitialXRef.current = line.x;
                     })
                     .onUpdate((event) => {
                       let newDragX =
-                        dragInitialXRef.current + event.translationX; // Calculate new X based on translation
+                        dragInitialXRef.current + event.translationX;
                       newDragX = Math.max(0, Math.min(newDragX, innerWidth));
-                      handleDragLineUpdateGlobal(line.id, newDragX); // Call non-sorting update
+                      handleDragLineUpdateGlobal(line.id, newDragX);
                     })
                     .onEnd(() => {
                       setDraggingLineId(null);
-                      // Sort all lines after dragging one has finished
                       setThresholdLines((prevLines) =>
                         [...prevLines].sort((a, b) => a.x - b.x)
                       );
-                    });
+                    })
+                    .runOnJS(true); // <--- ADD THIS
 
                   const handleSize = 12;
                   const handleY = baseline - handleSize / 2;

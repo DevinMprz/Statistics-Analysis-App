@@ -6,7 +6,6 @@ import {
   StyleSheet,
   SafeAreaView,
 } from 'react-native';
-import CustomButton from '../../../components/customButton';
 
 const CustomTabBar = ({ customTabs, platform }) => {
 

@@ -1,18 +1,43 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
 import { StyleSheet } from "react-native";
 
 import CustomDataInput from "./customDataInput";
 
-const CustomDataForm = ({ formHandler }) => {
+const CustomDataForm = ({ formHandler, testID }) => {
+    testID={testID}
     const mainRef = useRef(null)
+    const addButtonRef = useRef(null)
+    const removeButtonRef = useRef(null)
     const [dataInputs, setDataInputs] = useState([
         { id: 1, value: 0, label: "-" },
     ]);
 
+
+    useEffect(() => {
+        if(dataInputs.length < 20){
+            addButtonRef.current.style.display = 'block'
+            removeButtonRef.current.style.display = 'block'
+        }
+    },[dataInputs])
+
     const handleDataAdding = () => {
         const nextId = dataInputs.length + 1;
         setDataInputs((prev) => [...prev, { id: nextId, value: 0, label: "-" }]);
+        
+        if(dataInputs.length > 18){ 
+            addButtonRef.current.style.display = 'none';
+            return
+        }
+    };
+
+    
+    const handleDataRemoving = () => {
+        if(dataInputs.length <= 1){ 
+            removeButtonRef.current.style.display = 'none';
+            return
+        }
+       setDataInputs((prev) => prev.slice(0, -1));
     };
 
     const handleSubmit = (e) => {
@@ -67,7 +92,15 @@ const CustomDataForm = ({ formHandler }) => {
                 onClick={handleDataAdding}
                 style={styles.addButtonStyles}
                 type="button"
+                ref={addButtonRef}
                 >+</button>
+
+                <button
+                onClick={handleDataRemoving}
+                style={styles.addButtonStyles}
+                ref={removeButtonRef    }
+                type="button"
+                >-</button>
 
                 <div 
                 style={styles.buttonContainerStyles}>
@@ -91,7 +124,9 @@ const styles = StyleSheet.create({
     containerStyles: {
         position: "fixed",
         width: "100%",
-        height: "100vh",
+        minHeight: "100vh",
+        overflowY: 'scroll',
+        height: '100%',
         backgroundColor: "#fff",
         display: "flex",
         gap: "1rem",

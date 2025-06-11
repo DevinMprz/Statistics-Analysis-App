@@ -1,16 +1,16 @@
-import React, { useState, useMemo, useEffect, act } from 'react';
-import { View, Text, ScrollView, Dimensions, StyleSheet, StatusBar, Platform } from 'react-native';
+import React, { useState, useMemo, useEffect} from 'react';
+import { View, Text, ScrollView, Dimensions, StyleSheet, StatusBar, Platform} from 'react-native';
 import { BarChart } from 'react-native-gifted-charts';
-import { RadioButton } from 'react-native-paper';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, useSharedValue, runOnJS, clamp, useDerivedValue, useAnimatedProps } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, runOnJS, clamp} from 'react-native-reanimated';
 import { Line, Svg, Text as SvgText} from 'react-native-svg'
-import { isScaleX, ReText } from 'react-native-redash';
 import {scaleLinear} from 'd3-scale'
+import { RadioButton } from 'react-native-paper';
 import CustomTabBar from './minitool_one_components/customTabBar';
-import CustomButton from '../../components/customCircleButton';
+import CustomButton from '../../components/customButton';
 import CustomDataForm from './minitool_one_components/customDataForm';
-import Test from './minitool_one_components/test';
+
+
 
 const initialData = [
     {value: 10, label: 'Always Ready' },
@@ -47,81 +47,81 @@ const Minitool_1 = ({
 			return (this.barWidth + this.spacing) * 20 + 20;
 		},
 		width: width * 0.75,
-		shiftX: Platform.OS === 'web' ? 0 : -(width * 0.1),
-		noteOfSections: Platform.OS !== 'android' && Platform.OS !== 'ios' ? 12 : 6,
-		stepValue: Platform.OS === 'web' ? 14 : 28,
+		shiftX: platform === 'web' ? 0 : -(width * 0.1),
+		noteOfSections: platform !== 'android' && platform !== 'ios' ? 12 : 6,
+		stepValue: platform === 'web' ? 14 : 28,
 	},
-	offset = Platform.OS === 'web' ? 3 : 24,
+	offset = platform === 'web' ? 3 : 24,
 }) => {
  const mainContainer = {
 		height: graph_config.height + 180,
 		width	: graph_config.width + 190,
 	};
 
+	// State for active tools, can be 'value', 'range', 'none' and 'both'
+	// It helps to display tools
 	const [activeTool, setActiveTool] = useState('none');
 
-	const [isFormActive, setIsFormActive] = useState(false);
-
-	//Button state and data management
-	const [checked, setChecked] = useState('normal');
-
+	//Shared value for data, which is used by barChart to change data
+	//State allows to return to intiall data if user wants to
 	const data = useSharedValue(initialData);
 	const [originalData, setOriginalData] = useState(data.value);
+	//State which is triggered by special customForm, which allows user
+	//to paste his own data
+	const [isFormActive, setIsFormActive] = useState(false);
 	
 	useEffect(() => {
-			const handleAdditionalData = () => {
-				const loaded = [];
-	
-				Object.keys(localStorage).forEach((key) => {
-					try {
-						const item = JSON.parse(localStorage.getItem(key));
-						if (item && typeof item === "object" && item.value && item.label) {
-							loaded.push({ value: item.value, label: item.label });
-						}
-					} catch (e) {
-						console.warn("Invalid JSON in localStorage:", key);
-					}
-				});
-	
-				loaded.length === 0 ? data.value = initialData : data.value = loaded;
-			}
-	
-			handleAdditionalData();
-			setOriginalData(data.value);
-	
-			localStorage.clear();
-		}, [isFormActive])
-	
-	const maxXvalue = graph_config.stepValue * graph_config.noteOfSections;
-	 const xScale = useMemo(
-    () => scaleLinear().domain([0, maxXvalue]).range([0 + graph_config.shiftX, graph_config.width + graph_config.shiftX]),
-    [maxXvalue, graph_config.width]
-  	);
+		if(platform === 'web'){
+			const loaded = [];
 
-	//Sorted by Label - CHANGED !!!!!!!!!!
+			Object.keys(localStorage).forEach((key) => {
+			try {
+				const item = JSON.parse(localStorage.getItem(key));
+				if (item && typeof item === "object" && item.value && item.label) {
+					loaded.push({ value: item.value, label: item.label });
+				}
+			} catch (e) {
+				console.warn("Invalid JSON in localStorage:", key);
+			}
+			});
+
+			loaded.length === 0 ? data.value = initialData : data.value = loaded;
+			setOriginalData(data.value);
+			localStorage.clear();
+		}
+	}, [isFormActive]);
+	
+	//State for 3 radio buttons, used to sort data
+	const [checked, setChecked] = useState('normal');
+	//Sorts data by it's label
 	const sortByLabel = () => {
 	  const sortedData = [...data.value].sort((a, b) => a.label.localeCompare(b.label));
 	  data.value = (sortedData);
 	  setChecked('label');
 	};
-	//Sorted by Values - CHANGED !!!!!!!!!!
+	//Sorts data by Values(from lowest -> to higest)
 	const sortByValue = () => {
 		const sortedData = [...data.value].sort((a,b) => a.value - b.value);
 		data.value = (sortedData);
 		setChecked('value');
 	}
-	//Back to unsorted data - CHANGED !!!!!!!!!!
+	//Back to unsorted data
 	const resetData = () => {
 		data.value = (originalData);
 		setChecked('normal'); 
 	};	
 	
 
-	
-	
-	//Separator gesture
+	//Special function which allows to map linear x values to data range x values
+	const maxXvalue = graph_config.stepValue * graph_config.noteOfSections;
+	const xScale = useMemo(
+    () => scaleLinear().domain([0, maxXvalue]).range([0 + graph_config.shiftX, graph_config.width + graph_config.shiftX]),
+    [maxXvalue, graph_config.width]
+  );
+	//"Value tool"--------------------------------------------
 	const translationX = useSharedValue((maxXvalue /2))
   const prevTranslationX = useSharedValue(0);
+	//Special const whic is used to draw separator line and display value of "Value tool"
 	const animatedX = useSharedValue((maxXvalue /2) + 15);
 
 	const [isPanning, setIsPanning] = useState(false); 
@@ -134,9 +134,6 @@ const Minitool_1 = ({
 			runOnJS(setIsPanning)(true);
 			 	translationX.value = clamp(0, event.translationX + prevTranslationX.value, graph_config.width);
 			 	animatedX.value = translationX.value + 15;
-				// console.log("translationX.value", translationX.value);
-				// console.log("Width", graph_config.width);
-				// console.log("Height", graph_config.height);
 		 })
 		 .onEnd(() =>{
 			runOnJS(setIsPanning)(false);
@@ -146,12 +143,15 @@ const Minitool_1 = ({
 		 transform: [{ translateX: translationX.value }],
 	 }));
 
-	//Separator line 
+	//"Value tool" components - line and text 
 	const AnimatedLine = Animated.createAnimatedComponent(Line);
 	const AnimatedSvgText = Animated.createAnimatedComponent(SvgText);
 
-	//Counter gesture
+	//"Range tool"-------------------------------------------------------------------------
+	//Special const which doesn't allow two lines of "Range tool"  
+	// to be closer than 30 pixels from each other
 	const minDistanseBeetwenLines = 30;
+	//Special const whic is used to draw three lines of "Range tool" and display counter value
 	const translationXSecond = useSharedValue(maxXvalue / 2 - 40) ;
 	const translationXThird = useSharedValue(maxXvalue / 2 + 40);
 	const mainXValue = useSharedValue((translationXSecond + translationXThird)/2);
@@ -160,7 +160,8 @@ const Minitool_1 = ({
 
 	const [highlightRange, setHighlightRange] = useState({ low: null, up: null });
 	
-	 useEffect(() => {
+	//Use effect which is used to rerender BarChart colors
+	useEffect(() => {
     const calculateAndSetHighlightRange = () => {
       const rawLow = xScale.invert(translationXSecond.value - 15).toFixed(0) - offset;
       const rawUp = xScale.invert(translationXThird.value - 15).toFixed(0) - offset;
@@ -169,8 +170,7 @@ const Minitool_1 = ({
       const upValue = Math.max(rawLow, rawUp);
 
       setHighlightRange({ low: lowValue, up: upValue });
-    };
-
+  };
     calculateAndSetHighlightRange();
   }, [
     translationXSecond.value,
@@ -180,7 +180,7 @@ const Minitool_1 = ({
     graph_config.maxValue,
   ]);	
 
-
+	//Special function which counts how many chart are in range
 	const handleCounterArea = () => {
 
 		const low = xScale.invert(translationXSecond.value - 15).toFixed(0) - offset; 
@@ -188,7 +188,6 @@ const Minitool_1 = ({
 		
     let count = 0;
 
-		//!!! CHANGED !!!
     data.value.forEach((el) => {
       if (el.value >= low && el.value <= up) {
         count++;
@@ -279,29 +278,27 @@ const Minitool_1 = ({
 			transform: [{translateX: (translationXSecond.value + translationXThird.value) / 2 - 15}],
 		}));
 
-
+	//View which represent actuall BarChart with all it's modifications
 	const Chart = <View style={{ height: graph_config.height + 110 }}>
 		<BarChart
 			//Data for the chart
 			data={data.value.map(item => {
-          // The value of the bar is its 'end' for horizontal bars
+    
           const barEndValue = item.value;
 
-          // Determine if the bar's end is within the calculated highlight range
           const isInsideGreenRange =
-            highlightRange.low !== null && // Ensure range has been set
+            highlightRange.low !== null &&
             barEndValue >= highlightRange.low &&
             barEndValue <= highlightRange.up;
 
           let frontColor;
           if (isInsideGreenRange) {
-            frontColor = '#00ff00'; // Green: if the bar's end is within the dynamic range
+            frontColor = '#bf00ff'; 
           } else if (item.label === 'Always Ready') {
-            frontColor = '#ffff00'; // Yellow: for Company A
+            frontColor = '#ffff00'; 
           } else {
-            frontColor = '#0099ff'; // Blue: for Company B
+            frontColor = '#0099ff'; 
           }
-
           return {
             ...item,
             frontColor: frontColor,
@@ -334,25 +331,11 @@ const Minitool_1 = ({
 			xAxisLabelsHeight={1}
 			/>
 	</View>;
-	
+
+	//Help to increase the line length if there are two settings on the screen at the same time
 	const default_length = graph_config.height + 155;
 	const [activeLength, setActiveLength] = useState(graph_config.height + 155);
 	const tabs = [
-		 <CustomButton
-			title={'Add data'}
-			hadlePress={() => {
-        setIsFormActive(true);
-      }}
-			containerStyles = "bg-sky-400/75 w-full m-4"
-		/>,
-    <CustomButton
-			title={'Reset data'}
-			hadlePress={() => {
-        data.value = initialData;
-        setOriginalData(initialData);
-      }}
-			containerStyles = "bg-sky-400/75 w-full m-4"
-		/>,
 		<CustomButton
 			title={'Value tool'}
 			hadlePress={() => {
@@ -369,6 +352,7 @@ const Minitool_1 = ({
 				}
 			}}
 			containerStyles = {`bg-sky-400/75 w-full m-4`}
+			testID={'custom-button-Value-tool'}
 		/>,
 		<CustomButton
 			title={'Range tool'}
@@ -388,9 +372,27 @@ const Minitool_1 = ({
 				}
 			}}
 			containerStyles = "bg-sky-400/75 w-full m-4"
+			testID={'custom-button-Range-tool'}
 		/>
 		]
-
+	const additionalTabs = [
+			<CustomButton
+			title={'Add data'}
+			hadlePress={() => {
+        setIsFormActive(true);
+      }}
+			containerStyles = "bg-sky-400/75 w-full m-4"
+			testID={'custom-button-Add-data'}
+		/>,
+    <CustomButton
+			title={'Reset data'}
+			hadlePress={() => {
+        data.value = initialData;
+        setOriginalData(initialData);
+      }}
+			containerStyles = "bg-sky-400/75 w-full m-4"
+		/>,
+		]
 	return (
 		<GestureHandlerRootView>
 			 {isFormActive ? (<CustomDataForm formHandler={setIsFormActive} />) : null}
@@ -399,7 +401,7 @@ const Minitool_1 = ({
 						<Text style={styles.text}>Life Span of Batteries</Text>
 					 
 						<View style={{
-							height: platform === 'web' ? height * 0.85 : height * 0.9 , 
+							height: platform === 'web' ? height * 0.85 : height * 0.7 , 
 							width: width, 
 							margin: 0, 
 							flexDirection: platform === 'web' ? 'row': 'column', 
@@ -418,7 +420,7 @@ const Minitool_1 = ({
 									>	
 										<AnimatedLine
 											x1={animatedX}
-											y1={30}
+											y1={50}
 											x2={animatedX}
 											y2={graph_config.height + 120}
 											stroke="#000099"
@@ -426,7 +428,7 @@ const Minitool_1 = ({
 										/>
 										<AnimatedSvgText
 											x={animatedX}
-											y={30}
+											y={50}
 											fontSize={20}
 											fill={'#000099'}
 										>
@@ -453,7 +455,7 @@ const Minitool_1 = ({
 											y1={activeLength}
 											x2={translationXThird}
 											y2={activeLength}
-											stroke="#000"
+											stroke="#f53b57"
 											strokeWidth="3"
 										/>
 										<AnimatedLine
@@ -461,7 +463,7 @@ const Minitool_1 = ({
 											y1={30}
 											x2={translationXSecond}
 											y2={activeLength + 1}
-											stroke="#000"
+											stroke="#f53b57"
 											strokeWidth="3"
 											/>
 										<AnimatedLine
@@ -469,16 +471,16 @@ const Minitool_1 = ({
 											y1={30}
 											x2={translationXThird}
 											y2={activeLength + 1}
-											stroke="#000"
+											stroke="#f53b57"
 											strokeWidth="3"
 										/>
 										<SvgText
 											x={translationXSecond.value + 20}
 											y={30}
-											fontSize={12}
-											fill={'#000'}
+											fontSize={20}
+											fill={'#f53b57'}
 										>
-											{handleCounterArea()}
+											{`Count: ${handleCounterArea()}`}
 										</SvgText>
 									</Svg> 
 								</View>
@@ -542,6 +544,7 @@ const Minitool_1 = ({
 										onPress={resetData}
 										uncheckedColor='#38BDF8BF'
 										color='#ff0066'
+										testID="return-to-normal"
 									/>
 									<Text style={{ fontSize: 18}}>Normal Data</Text>
 								</View>
@@ -552,6 +555,7 @@ const Minitool_1 = ({
 										onPress={sortByLabel}
 										uncheckedColor='#38BDF8BF'
 										color='#ff0066'
+										testID="sort-by-label-radio"
 									/>
 									<Text style={{ fontSize: 18}}>Sort by Label</Text>	
 								</View>
@@ -562,16 +566,16 @@ const Minitool_1 = ({
 										onPress={sortByValue}
 										uncheckedColor='#38BDF8BF'
 										color='#ff0066'
+										testID="sort-by-value-radio"
 									/>
 									<Text style={{ fontSize: 18}}>Sort by Value</Text>
 								</View>
 							</View>
 						</View>
-										
-					
+											
 				</ScrollView>
 				<CustomTabBar
-						customTabs={tabs}
+						customTabs={platform === 'web' ? tabs.concat(additionalTabs) : tabs}
 						platform={platform}
 					/> 
 		</GestureHandlerRootView>		  		
@@ -582,7 +586,7 @@ const styles = StyleSheet.create({
 		flex: 1,
 		flexDirection: 'column',
     backgroundColor: '#e5e7eb',
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    paddingTop: platform === 'android' ? StatusBar.currentHeight : 0,
 	},
 	text: {
 		margin: height * 0.02,
@@ -623,14 +627,18 @@ const styles = StyleSheet.create({
 	counterMainButton: {
     width: 30,
     height: 30,
-    backgroundColor: "#000",
+    backgroundColor: "#ffa801",
+		borderColor: "#f53b57",
     borderRadius: 20,
+		borderWidth: 2, 
   },
 	counterAdditionalButton: {
     width: 30,
     height: 30,
-    backgroundColor: "#fff",
+    backgroundColor: "#0fbcf9",
+    borderColor: "#575fcf",
     borderRadius: 20,
+		borderWidth: 2, 
   },
 	valueButton: {
 		//position: "absolute",

@@ -12,8 +12,6 @@ import { DotHistogramView as SpeedTrapHistogram } from "./minitool_2_components/
 import {
   dataBefore as speedDataBefore,
   dataAfter as speedDataAfter,
-  generateSpeedTrapData,
-  calculateCombinedExtent, // <--- Added import
 } from "../../data/_data"; // Adjusted path
 
 const screenWidth = Dimensions.get("window").width;
@@ -24,21 +22,6 @@ export default function SpeedTrapScreen() {
     screenWidth < SMALL_SCREEN_THRESHOLD
       ? screenWidth * 0.9
       : screenWidth * 0.8;
-
-  // Example usage of the new data generator:
-  // const generatedSpeedDataBefore = generateSpeedTrapData(60, 50, 100);
-  // const generatedSpeedDataAfter = generateSpeedTrapData(60, 55, 105);
-  // const combinedGeneratedSpeedData = [generatedSpeedDataBefore, generatedSpeedDataAfter];
-
-  // Determine which datasets to use (generated or static)
-  const currentSpeedDataBefore = speedDataBefore; // Replace with generatedSpeedDataBefore if active
-  const currentSpeedDataAfter = speedDataAfter; // Replace with generatedSpeedDataAfter if active
-
-  // Calculate the combined extent for speed trap data
-  const speedTrapExtent = calculateCombinedExtent([
-    currentSpeedDataBefore,
-    currentSpeedDataAfter,
-  ]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -51,11 +34,10 @@ export default function SpeedTrapScreen() {
             <SpeedTrapHistogram
               width={speedTrapHistogramContainerWidth}
               height={220}
-              data={[currentSpeedDataBefore, currentSpeedDataAfter]} // Or use combinedGeneratedSpeedData
+              data={[speedDataBefore, speedDataAfter]}
               dotRadius={4}
               initialIntervalWidth={5}
               chartName="Vehicle Speeds"
-              xDomain={speedTrapExtent} // <--- Pass the calculated extent
             />
           </View>
         </ScrollView>

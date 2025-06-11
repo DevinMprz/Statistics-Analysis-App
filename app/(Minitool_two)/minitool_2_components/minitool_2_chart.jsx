@@ -170,12 +170,20 @@ function CholesterolLevelChart(settings) {
 
     const minData = Math.min(...chartData);
     const maxData = Math.max(...chartData);
-    const xScale = scaleLinear()
-      .domain([minData - 5, maxData + 5])
-      .range([0, innerWidth]);
+    const xScale = useMemo(
+      () =>
+        scaleLinear()
+          .domain([minData - 5, maxData + 5])
+          .range([0, innerWidth]),
+      [minData, maxData, innerWidth]
+    );
 
     const levelGap = dotRadius * 2 + 2;
-    const scatterPlotData = computeScatterData(chartData, xScale, dotRadius);
+    // Memoize scatterPlotData
+    const scatterPlotData = useMemo(() => {
+      return computeScatterData(chartData, xScale, dotRadius);
+    }, [chartData, xScale, dotRadius]);
+
     const maxLevel = Math.max(1, ...scatterPlotData.map((d) => d.level || 1));
 
     const minChartHeight = height;
@@ -194,15 +202,15 @@ function CholesterolLevelChart(settings) {
       })
       .runOnJS(true); // <--- ADD THIS
 
-    const getSeparatorsForBoxPlot = () => {
+    // Memoize boxPlotSeparators
+    const boxPlotSeparators = useMemo(() => {
       if (!boxPlotMode) return [];
       const stats = getQuartiles(chartData);
       if (boxPlotMode === "two") return [stats.min, stats.median, stats.max];
       if (boxPlotMode === "four")
         return [stats.min, stats.q1, stats.median, stats.q3, stats.max];
       return [];
-    };
-    const boxPlotSeparators = getSeparatorsForBoxPlot();
+    }, [chartData, boxPlotMode]);
 
     const calculateAndRenderCountsInGaps = () => {
       if (!boxCreationMode && thresholdLines.length === 0) return null;
@@ -342,6 +350,7 @@ function CholesterolLevelChart(settings) {
               {boxCreationMode &&
                 thresholdLines.map((line) => {
                   const lineDragGesture = Gesture.Pan()
+                    .activeOffsetX([0, 0]) // Make drag activate with smaller horizontal movement
                     .onBegin(() => {
                       setDraggingLineId(line.id);
                       dragInitialXRef.current = line.x;

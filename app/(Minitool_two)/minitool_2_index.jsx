@@ -5,8 +5,9 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import CustomButton from "../../components/customButton"; // Assuming CustomButton is in components folder at root
 
 // Define Tailwind CSS class strings for the button
-const buttonInRowTailwind = "py-[15px] px-[10px] rounded-[10px]";
-const buttonTextTailwind = "text-white text-base";
+// Adjusted for vertical layout: width 80%, vertical margin my-2 (approx 8px top and bottom)
+const buttonTailwind = "w-[80%] my-2 py-[15px] px-[10px] rounded-[10px]";
+const buttonTextTailwind = "text-white text-base font-bold"; // Added font-bold for consistency if needed
 
 export default function MinitoolTwoMenu() {
   return (
@@ -18,17 +19,18 @@ export default function MinitoolTwoMenu() {
             Explore these interactive tools to learn about data analysis in a
             fun way!
           </Text>
-          <View style={styles.buttonsRow}>
+          {/* Changed from styles.buttonsRow to styles.buttonsContainer for clarity */}
+          <View style={styles.buttonsContainer}>
             <CustomButton
               handlePress={() => router.push("cholesterol")}
               title="Cholesterol Level Scenario"
-              containerStyles={buttonInRowTailwind}
+              containerStyles={buttonTailwind} // Use updated Tailwind string
               textStyles={buttonTextTailwind}
             />
             <CustomButton
               handlePress={() => router.push("speedtrap")}
               title="Speed Trap Scenario"
-              containerStyles={buttonInRowTailwind}
+              containerStyles={buttonTailwind} // Use updated Tailwind string
               textStyles={buttonTextTailwind}
             />
           </View>
@@ -52,7 +54,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: "bold",
-    marginBottom: 20, // Adjusted margin
+    marginBottom: 20,
     color: "black",
   },
   introText: {
@@ -62,11 +64,11 @@ const styles = StyleSheet.create({
     marginBottom: 30,
     paddingHorizontal: 20,
   },
-  buttonsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between", // This will space out the two buttons
-    width: "50%", // Adjusted width to make buttons fill more space
-    alignSelf: "center",
+  buttonsContainer: {
+    // Renamed from buttonsRow and updated for vertical layout
+    flexDirection: "column",
+    alignItems: "center", // Center buttons horizontally
+    width: "100%", // Container can take full width to center its 80% width children
     marginBottom: 20,
   },
 });

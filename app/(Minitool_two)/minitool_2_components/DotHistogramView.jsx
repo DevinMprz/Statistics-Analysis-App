@@ -16,14 +16,14 @@ import Animated from "react-native-reanimated";
 // Default settings
 const defaultSettings = {
   width: 300,
-  height: 300, // Adjusted height for controls and chart
+  height: 300,
   data: null,
   dotRadius: 4,
-  dotColor: "green", // Changed default dot color for distinction
+  // dotColor: "green", // Will be set per chart
   axisColor: "black",
   intervalLineColor: "gray",
-  margins: { top: 20, bottom: 70, left: 40, right: 20 }, // Increased bottom margin for controls
-  xAxisStep: null, // Custom step size for x-axis ticks (can be kept for general axis)
+  margins: { top: 40, bottom: 70, left: 40, right: 20 }, // Increased top margin for counts
+  xAxisStep: null,
   initialIntervalWidth: 5,
 };
 
@@ -76,13 +76,12 @@ const computeIntervalBins = (data, intervalWidth, minData, maxData) => {
   if (!data || !data.length || intervalWidth <= 0) return [];
 
   const bins = [];
+  // Ensure the first bin starts at or before the minData
   const startValue = Math.floor(minData / intervalWidth) * intervalWidth;
 
-  for (
-    let currentMin = startValue;
-    currentMin < maxData + intervalWidth;
-    currentMin += intervalWidth
-  ) {
+  let currentMin = startValue;
+  // Ensure bins cover the entire data range, including maxData
+  while (currentMin <= maxData) {
     const currentMax = currentMin + intervalWidth;
     const count = data.filter(
       (value) => value >= currentMin && value < currentMax
@@ -92,17 +91,31 @@ const computeIntervalBins = (data, intervalWidth, minData, maxData) => {
       valueMax: currentMax,
       count: count,
     });
-    if (
-      currentMin >= maxData &&
-      count === 0 &&
-      bins.length > 1 &&
-      bins[bins.length - 2].count === 0
-    ) {
-      // Avoid adding too many empty bins at the end if maxData is a multiple of intervalWidth
-      if (currentMin > maxData) bins.pop();
-      break;
+    currentMin += intervalWidth;
+  }
+  // If the last bin's max is less than maxData, add one more bin if needed (edge case)
+  if (bins.length > 0) {
+    const lastBin = bins[bins.length - 1];
+    if (lastBin.valueMax <= maxData && lastBin.valueMax > lastBin.valueMin) {
+      // ensure valueMax is greater
+      // Check if maxData falls into the next interval
+      if (maxData >= lastBin.valueMax) {
+        const nextMin = lastBin.valueMax;
+        const nextMax = nextMin + intervalWidth;
+        const count = data.filter(
+          (value) => value >= nextMin && value < nextMax
+        ).length;
+        // Only add if there's data or if it's the first interval extending beyond maxData
+        if (count > 0 || (bins.length === 1 && nextMin === maxData)) {
+          bins.push({ valueMin: nextMin, valueMax: nextMax, count });
+        } else if (dataset.some((d) => d === maxData) && maxData === nextMin) {
+          // handles if maxData is exactly at the start of a new bin
+          bins.push({ valueMin: nextMin, valueMax: nextMax, count });
+        }
+      }
     }
   }
+
   return bins;
 };
 
@@ -137,12 +150,19 @@ function DotHistogramView(settings) {
   const innerWidth = svgWidth - margins.left - margins.right;
 
   // Helper function to create chart elements for a given dataset
-  const renderChart = (dataset, color, keyPrefix) => {
+  const renderChart = (dataset, color, keyPrefix, chartTitle) => {
+    if (!dataset || dataset.length === 0) {
+      return <Text key={keyPrefix}>No data for {chartTitle}</Text>;
+    }
     const minData = Math.min(...dataset);
     const maxData = Math.max(...dataset);
 
+    // Adjust domain to ensure it covers min and max data points adequately
+    const domainMin = minData - (intervalWidth > 0 ? intervalWidth * 0.5 : 5);
+    const domainMax = maxData + (intervalWidth > 0 ? intervalWidth * 0.5 : 5);
+
     const xScale = scaleLinear()
-      .domain([minData - 5, maxData + 5])
+      .domain([domainMin, domainMax])
       .range([0, innerWidth]);
 
     const scatterData = computeScatterData(dataset, xScale, dotRadius);
@@ -175,10 +195,8 @@ function DotHistogramView(settings) {
 
     return (
       <View key={keyPrefix} style={styles.chartInstanceContainer}>
-        {chartName && (
-          <Text style={styles.chartInstanceName}>
-            {chartName} - {keyPrefix === "before" ? "Before" : "After"}
-          </Text>
+        {chartTitle && (
+          <Text style={styles.chartInstanceName}>{chartTitle}</Text>
         )}
         <Svg width={svgWidth} height={chartHeight + margins.top + 20}>
           <G x={margins.left} y={margins.top}>
@@ -223,7 +241,7 @@ function DotHistogramView(settings) {
                 <G key={`interval-${keyPrefix}-${i}`}>
                   <Line
                     x1={xScale(bin.valueMin)}
-                    y1={margins.top / 2}
+                    y1={margins.top / 2 - 5} // Adjusted y1 for count text visibility
                     x2={xScale(bin.valueMin)}
                     y2={baseline}
                     stroke={intervalLineColor}
@@ -233,7 +251,7 @@ function DotHistogramView(settings) {
                   {bin.count > 0 && (
                     <SvgText
                       x={xScale(bin.valueMin + intervalWidth / 2)}
-                      y={margins.top / 2 + 5}
+                      y={margins.top / 2 - 8} // Position count above the line
                       fontSize={10}
                       fill={axisColor}
                       textAnchor="middle"
@@ -245,8 +263,9 @@ function DotHistogramView(settings) {
               ))}
             {showIntervals && intervalBins.length > 0 && (
               <Line
+                // Draw the last line at the end of the last interval
                 x1={xScale(intervalBins[intervalBins.length - 1].valueMax)}
-                y1={margins.top / 2}
+                y1={margins.top / 2 - 5} // Adjusted y1
                 x2={xScale(intervalBins[intervalBins.length - 1].valueMax)}
                 y2={baseline}
                 stroke={intervalLineColor}
@@ -283,8 +302,18 @@ function DotHistogramView(settings) {
   return (
     <Animated.View style={styles.container}>
       {/* Render two charts */}
-      {renderChart(chartDataBefore, "blue", "before")}
-      {renderChart(chartDataAfter, "orange", "after")}
+      {renderChart(
+        chartDataBefore,
+        "green",
+        "before",
+        "Vehicle Speeds - April 2002"
+      )}
+      {renderChart(
+        chartDataAfter,
+        "pink",
+        "after",
+        "Vehicle Speeds - Two months later"
+      )}
 
       {/* Controls moved under the charts */}
       <View style={styles.controlsContainer}>

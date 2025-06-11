@@ -20,9 +20,28 @@ import {
 import { DotHistogramView as SpeedTrapHistogram } from "./minitool_2_components/DotHistogramView";
 
 const screenWidth = Dimensions.get("window").width;
+const SMALL_SCREEN_THRESHOLD = 400; // Threshold for considering a screen "small"
 
 export default function minitool_2() {
-  const chartWidth = screenWidth * 0.2; // 20% of screen width as per your confirmation
+  // Adjust chartWidth based on screen size
+  const individualChartBaseWidth =
+    screenWidth < SMALL_SCREEN_THRESHOLD
+      ? screenWidth * 0.85
+      : screenWidth * 0.35;
+  // For CholesterolLevelChart, width is for the whole component containing two charts.
+  // We assume CholesterolLevelChart manages its internal layout.
+  // Let's make the component take up a significant portion of the screen if small,
+  // or a more constrained width if larger.
+  const cholesterolChartContainerWidth =
+    screenWidth < SMALL_SCREEN_THRESHOLD
+      ? screenWidth * 0.9
+      : screenWidth * 0.8;
+
+  // For SpeedTrapHistogram, the `width` prop is also for the whole component.
+  const speedTrapHistogramContainerWidth =
+    screenWidth < SMALL_SCREEN_THRESHOLD
+      ? screenWidth * 0.9
+      : screenWidth * 0.8;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -40,8 +59,8 @@ export default function minitool_2() {
               Module One: Cholesterol Level Scenario
             </Text>
             <CholesterolLevelChart
-              width={chartWidth * 2 + 20} // Adjust width to accommodate two charts + spacing if needed
-              height={150} // Example height, adjust as needed
+              width={cholesterolChartContainerWidth}
+              height={180} // Increased height slightly
               dataBefore={cholesterolDataBefore}
               dataAfter={cholesterolDataAfter}
               dotRadius={5}
@@ -57,8 +76,8 @@ export default function minitool_2() {
               Module Two: Speed Trap Scenario
             </Text>
             <SpeedTrapHistogram
-              width={chartWidth * 2 + 20} // Adjust width for two internal charts
-              height={200} // Example height
+              width={speedTrapHistogramContainerWidth}
+              height={220} // Increased height slightly
               // Pass data as an array: [beforeData, afterData]
               data={[speedDataBefore, speedDataAfter]}
               dotRadius={4}

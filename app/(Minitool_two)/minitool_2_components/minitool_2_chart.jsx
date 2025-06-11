@@ -112,32 +112,32 @@ function CholesterolLevelChart(settings) {
 
   const [showData, setShowData] = useState(true);
   const [boxCreationMode, setBoxCreationMode] = useState(false);
-  // thresholdLines stores objects: { id: number, x: number (visual position relative to innerWidth) }
   const [thresholdLines, setThresholdLines] = useState([]);
   const [draggingLineId, setDraggingLineId] = useState(null);
   const [boxPlotMode, setBoxPlotMode] = useState(null); // null, 'two', 'four'
   const dragInitialXRef = useRef(0);
 
-  const handleAddLineGlobal = (tapXPosition) => {
-    if (boxCreationMode) {
-      const newId = Date.now();
-      // tapXPosition is already clamped and relative to innerWidth
-      setThresholdLines((prev) =>
-        [...prev, { id: newId, x: tapXPosition }].sort((a, b) => a.x - b.x)
-      );
-    }
-  };
+  const handleAddLineGlobal = useCallback(
+    (tapXPosition) => {
+      if (boxCreationMode) {
+        const newId = Date.now();
+        // Add new line and sort immediately
+        setThresholdLines((prev) =>
+          [...prev, { id: newId, x: tapXPosition }].sort((a, b) => a.x - b.x)
+        );
+      }
+    },
+    [boxCreationMode]
+  ); // setThresholdLines is stable, not needed as dep
 
-  const handleDragLineUpdateGlobal = (lineId, newXPosition) => {
-    // newXPosition is already clamped and relative to innerWidth
-    setThresholdLines((prev) =>
-      prev
-        .map((line) =>
-          line.id === lineId ? { ...line, x: newXPosition } : line
-        )
-        .sort((a, b) => a.x - b.x)
+  const handleDragLineUpdateGlobal = useCallback((lineId, newXPosition) => {
+    // Update position without sorting
+    setThresholdLines((prevLines) =>
+      prevLines.map((line) =>
+        line.id === lineId ? { ...line, x: newXPosition } : line
+      )
     );
-  };
+  }, []); // setThresholdLines is stable, not needed as dep
 
   const renderChartInternal = (
     dataset,
@@ -330,10 +330,14 @@ function CholesterolLevelChart(settings) {
                       let newDragX =
                         dragInitialXRef.current + event.translationX; // Calculate new X based on translation
                       newDragX = Math.max(0, Math.min(newDragX, innerWidth));
-                      handleDragLineUpdateGlobal(line.id, newDragX);
+                      handleDragLineUpdateGlobal(line.id, newDragX); // Call non-sorting update
                     })
                     .onEnd(() => {
                       setDraggingLineId(null);
+                      // Sort all lines after dragging one has finished
+                      setThresholdLines((prevLines) =>
+                        [...prevLines].sort((a, b) => a.x - b.x)
+                      );
                     });
 
                   const handleSize = 12;

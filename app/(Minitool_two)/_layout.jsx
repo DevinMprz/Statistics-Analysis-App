@@ -12,6 +12,15 @@ const Minitool_2_layout = () => {
             headerShown: false,
           }}
         />
+        <Stack.Screen
+          name="minitool_2_index"
+          options={{ title: "Minitool Two Menu" }}
+        />
+        <Stack.Screen
+          name="cholesterol"
+          options={{ title: "Cholesterol Levels" }}
+        />
+        <Stack.Screen name="speedtrap" options={{ title: "Speed Trap" }} />
       </Stack>
 
       <StatusBar backgroundColor="#e5e7eb" style="auto" />

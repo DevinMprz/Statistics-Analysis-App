@@ -1,5 +1,12 @@
 import React, { useState, useMemo, useCallback, useRef } from "react";
-import { View, Text, StyleSheet, Button, Switch } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Button,
+  Switch,
+  TouchableOpacity,
+} from "react-native"; // Added TouchableOpacity
 import Svg, { G, Circle, Line, Text as SvgText, Rect } from "react-native-svg";
 import { scaleLinear } from "d3-scale";
 import Animated from "react-native-reanimated";
@@ -19,7 +26,7 @@ const defaultSettings = {
   thresholdColor: "red",
   axisColor: "black",
   separatorColor: "purple", // For box plot separators
-  margins: { top: 40, bottom: 30, left: 40, right: 20 }, // Increased top for name/counts
+  margins: { top: 40, bottom: 40, left: 40, right: 20 }, // Increased bottom margin to 40
   enablePopup: false,
   xAxisStep: null,
   chartName: "Cholesterol Levels", // Updated default chart name
@@ -116,6 +123,7 @@ function CholesterolLevelChart(settings) {
   const [draggingLineId, setDraggingLineId] = useState(null);
   const [boxPlotMode, setBoxPlotMode] = useState(null); // null, 'two', 'four'
   const dragInitialXRef = useRef(0);
+  const [isLegendOpen, setIsLegendOpen] = useState(false); // Added for legend
 
   const handleAddLineGlobal = useCallback(
     (tapXPosition) => {
@@ -260,6 +268,16 @@ function CholesterolLevelChart(settings) {
         <GestureDetector gesture={tapGesture}>
           <Svg width={svgWidth} height={currentChartHeight + margins.top + 20}>
             <G x={margins.left} y={margins.top}>
+              {/* X-axis line - MOVED EARLIER */}
+              <Line
+                x1={0}
+                y1={baseline}
+                x2={innerWidth}
+                y2={baseline}
+                stroke={axisColor}
+                strokeWidth={1}
+              />
+
               {/* X-axis ticks and labels */}
               {xAxisTicksData.map((tick, i) => (
                 <G key={`tick-${datasetKey}-${i}`}>
@@ -289,7 +307,7 @@ function CholesterolLevelChart(settings) {
                   <Circle
                     key={`dot-${datasetKey}-${i}`}
                     cx={xScale(d.value)}
-                    cy={baseline - (d.level - 1) * levelGap}
+                    cy={baseline - dotRadius - 2 - (d.level - 1) * levelGap} // Adjusted cy for dots to be slightly above x-axis
                     r={dotRadius}
                     fill={dotColorProp}
                     onPress={enablePopup ? () => setHoveredDot(d) : undefined}
@@ -343,7 +361,10 @@ function CholesterolLevelChart(settings) {
                     .runOnJS(true); // <--- ADD THIS
 
                   const handleSize = 12;
-                  const handleY = baseline - handleSize / 2;
+                  // Position handleY so the square is below the x-axis tick labels.
+                  // X-axis labels are at y={baseline + 15}, fontSize={10}.
+                  // Top of square will be at baseline + 17.
+                  const handleY = baseline + 17;
 
                   return (
                     <G key={`threshold-line-group-${line.id}-${datasetKey}`}>
@@ -351,14 +372,15 @@ function CholesterolLevelChart(settings) {
                         x1={line.x}
                         y1={margins.top - 10} // Extend line slightly above counts
                         x2={line.x}
-                        y2={baseline}
+                        // Extend line down to the bottom of the handle
+                        y2={handleY + handleSize}
                         stroke={thresholdColor}
                         strokeWidth={2}
                       />
                       <GestureDetector gesture={lineDragGesture}>
                         <Rect // Draggable Handle
                           x={line.x - handleSize / 2}
-                          y={handleY}
+                          y={handleY} // Use the new handleY
                           width={handleSize}
                           height={handleSize}
                           fill={
@@ -401,6 +423,7 @@ function CholesterolLevelChart(settings) {
                     strokeWidth={1.5}
                     strokeDasharray="3,3"
                   />
+                  {/* X-axis line was here, moved earlier */}
                   <SvgText
                     x={xScale(sepValue)}
                     y={margins.top - 15}
@@ -412,16 +435,6 @@ function CholesterolLevelChart(settings) {
                   </SvgText>
                 </G>
               ))}
-
-              {/* X-axis line */}
-              <Line
-                x1={0}
-                y1={baseline}
-                x2={innerWidth}
-                y2={baseline}
-                stroke={axisColor}
-                strokeWidth={1}
-              />
             </G>
           </Svg>
         </GestureDetector>
@@ -431,6 +444,60 @@ function CholesterolLevelChart(settings) {
 
   return (
     <Animated.View style={styles.wrapper}>
+      {/* Legend Toggle and Content */}
+      <TouchableOpacity
+        onPress={() => setIsLegendOpen(!isLegendOpen)}
+        style={styles.legendToggle}
+      >
+        <Text style={styles.legendToggleText}>
+          {isLegendOpen ? "▼" : "►"} About This Cholesterol Chart
+        </Text>
+      </TouchableOpacity>
+      {isLegendOpen && (
+        <View style={styles.legendContent}>
+          <Text style={styles.legendTitle}>Cholesterol Level Analysis</Text>
+          <Text style={styles.legendText}>
+            <Text style={styles.legendTextBold}>What is this?</Text> These
+            charts display cholesterol levels for a group of individuals. The{" "}
+            <Text style={{ color: "green", fontWeight: "bold" }}>GREEN</Text>{" "}
+            chart shows levels <Text style={styles.legendTextBold}>before</Text>{" "}
+            a dietary change, and the{" "}
+            <Text style={{ color: "pink", fontWeight: "bold" }}>PINK</Text>{" "}
+            chart shows levels <Text style={styles.legendTextBold}>after</Text>{" "}
+            the diet.
+          </Text>
+          <Text style={styles.legendText}>
+            <Text style={styles.legendTextBold}>Why is it useful?</Text>{" "}
+            Comparing the two charts helps to see if the diet had a positive
+            effect on lowering cholesterol. You can look for changes in how the
+            dots are spread out or grouped.
+          </Text>
+          <Text style={styles.legendText}>
+            <Text style={styles.legendTextBold}>What can you do?</Text>
+            {"\n"}- Toggle{" "}
+            <Text style={styles.legendTextBold}>'Show Data'</Text> to view or
+            hide the individual data points (dots).
+            {"\n"}- Enable{" "}
+            <Text style={styles.legendTextBold}>'Create Boxes'</Text>: Then, tap
+            directly on the chart area to add vertical lines. Small squares will
+            appear on these lines near the x-axis.
+            {"\n"}- <Text style={styles.legendTextBold}>Drag the squares</Text>{" "}
+            left or right to reposition the lines. The numbers appearing between
+            the lines (or between a line and the chart edge) show how many data
+            points fall into that specific cholesterol range.
+            {"\n"}- Use the{" "}
+            <Text style={styles.legendTextBold}>'Clear All Boxes'</Text> button
+            to remove all lines you've added.
+            {"\n"}- Select{" "}
+            <Text style={styles.legendTextBold}>'Groups: Two (Median)'</Text> or{" "}
+            <Text style={styles.legendTextBold}>'Four (Quartiles)'</Text> to
+            automatically divide the data into sections based on statistical
+            values (median or quartiles). This will replace any lines you've
+            manually created.
+          </Text>
+        </View>
+      )}
+
       <View style={styles.chartsContainer}>
         {renderChartInternal(initialDataBefore, "before", "green")}
         {renderChartInternal(initialDataAfter, "after", "pink")}
@@ -541,6 +608,47 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 12,
     textAlign: "center",
+  },
+  legendToggle: {
+    backgroundColor: "#e0e0e0",
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 5,
+    marginVertical: 10,
+    alignItems: "center",
+    width: "95%", // Match controlsContainerUnderChart width
+    alignSelf: "center",
+  },
+  legendToggleText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "navy",
+  },
+  legendContent: {
+    width: "95%", // Match controlsContainerUnderChart width
+    alignSelf: "center",
+    padding: 15,
+    backgroundColor: "#f9f9f9",
+    borderRadius: 5,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+  },
+  legendTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 10,
+    color: "navy",
+    textAlign: "center",
+  },
+  legendText: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 8,
+    color: "#333",
+  },
+  legendTextBold: {
+    fontWeight: "bold",
   },
 });
 

@@ -6,6 +6,7 @@ import {
   TextInput,
   Button,
   Switch,
+  TouchableOpacity, // Added for legend
 } from "react-native";
 import Svg, { G, Circle, Line, Text as SvgText, Rect } from "react-native-svg";
 import { scaleLinear } from "d3-scale";
@@ -145,6 +146,7 @@ function DotHistogramView(settings) {
   const [inputValue, setInputValue] = useState(initialIntervalWidth.toString());
   const [showDots, setShowDots] = useState(true);
   const [showIntervals, setShowIntervals] = useState(true); // Default to true
+  const [isLegendOpen, setIsLegendOpen] = useState(false); // Added for legend
 
   const svgWidth = width;
   const innerWidth = svgWidth - margins.left - margins.right;
@@ -157,6 +159,9 @@ function DotHistogramView(settings) {
     const minData = Math.min(...dataset);
     const maxData = Math.max(...dataset);
 
+    // Use config.height directly for chart area calculation consistency
+    const fixedChartHeight = height; // height from config
+
     // Adjust domain to ensure it covers min and max data points adequately
     const domainMin = minData - (intervalWidth > 0 ? intervalWidth * 0.5 : 5);
     const domainMax = maxData + (intervalWidth > 0 ? intervalWidth * 0.5 : 5);
@@ -167,10 +172,11 @@ function DotHistogramView(settings) {
 
     const scatterData = computeScatterData(dataset, xScale, dotRadius);
     const maxLevel = Math.max(1, ...scatterData.map((d) => d.level || 1));
-    const minChartHeight = height || defaultSettings.height;
+    const minChartHeight = height || defaultSettings.height; // This is config.height
     const levelGap = dotRadius * 2 + 2;
-    const requiredHeight = maxLevel * levelGap + margins.top + margins.bottom;
-    const chartHeight = Math.max(minChartHeight, requiredHeight);
+    // requiredHeight calculation is kept for context but chartHeight is fixed
+    // const requiredHeight = maxLevel * levelGap + margins.top + margins.bottom;
+    const chartHeight = minChartHeight; // Use the fixed height from settings
     const baseline = chartHeight - margins.bottom;
 
     const intervalBins = computeIntervalBins(
@@ -199,6 +205,17 @@ function DotHistogramView(settings) {
           <Text style={styles.chartInstanceName}>{chartTitle}</Text>
         )}
         <Svg width={svgWidth} height={chartHeight + margins.top + 20}>
+          {/* SVG height is now based on the fixed chartHeight + top margin + padding.
+              Consider if chartHeight should represent the total SVG area or just plot area.
+              If chartHeight is plot area, SVG height = chartHeight + margins.top + margins.bottom.
+              Current: SVG height uses chartHeight (from config) + margins.top + an arbitrary 20.
+              Let's assume config.height is the main drawing area, and margins are handled by G transform and SVG sizing.
+              To truly fix SVG size, height prop of Svg should be a constant value.
+              Let's try: <Svg width={svgWidth} height={fixedChartHeight}> and adjust G transform and baseline.
+              No, the existing structure with chartHeight + margins.top + 20 for SVG height
+              and G transform y={margins.top} with baseline = chartHeight - margins.bottom
+              should work if chartHeight itself is fixed (which it is now).
+           */}
           <G x={margins.left} y={margins.top}>
             {/* X-axis Ticks and Labels */}
             {xAxisTicks.map((tick, i) => (
@@ -301,6 +318,48 @@ function DotHistogramView(settings) {
 
   return (
     <Animated.View style={styles.container}>
+      {/* Legend Toggle and Content */}
+      <TouchableOpacity
+        onPress={() => setIsLegendOpen(!isLegendOpen)}
+        style={styles.legendToggle}
+      >
+        <Text style={styles.legendToggleText}>
+          {isLegendOpen ? "▼" : "►"} What is this module about?
+        </Text>
+      </TouchableOpacity>
+      {isLegendOpen && (
+        <View style={styles.legendContent}>
+          <Text style={styles.legendTitle}>Speed Trap Analysis</Text>
+          <Text style={styles.legendText}>
+            <Text style={styles.legendTextBold}>What is this?</Text> This chart
+            shows how many cars were recorded at different speeds. The green
+            dots/bars represent speeds before a traffic calming measure (like a
+            new speed sign), and the pink dots/bars show speeds two months
+            later.
+          </Text>
+          <Text style={styles.legendText}>
+            <Text style={styles.legendTextBold}>Why is it useful?</Text> By
+            comparing the "before" and "after" charts, you can see if the
+            traffic calming measure was effective in reducing vehicle speeds.
+            Look for shifts in where most of the dots are clustered.
+          </Text>
+          <Text style={styles.legendText}>
+            <Text style={styles.legendTextBold}>What can you do?</Text>
+            {"\n"}- Adjust the{" "}
+            <Text style={styles.legendTextBold}>'Interval Width'</Text> to group
+            speeds into wider or narrower bins. This can help you see different
+            patterns in the data.
+            {"\n"}- Toggle{" "}
+            <Text style={styles.legendTextBold}>'Show Dots'</Text> to see each
+            individual car's speed or hide them to focus on the interval counts.
+            {"\n"}- Toggle{" "}
+            <Text style={styles.legendTextBold}>'Show Intervals'</Text> to see
+            the vertical lines marking the speed groups and the count of cars in
+            each group.
+          </Text>
+        </View>
+      )}
+
       {/* Render two charts */}
       {renderChart(
         chartDataBefore,
@@ -388,6 +447,45 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     width: 70,
     marginLeft: 10,
+  },
+  legendToggle: {
+    backgroundColor: "#e0e0e0",
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 5,
+    marginVertical: 10,
+    alignItems: "center",
+    width: "90%",
+  },
+  legendToggleText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "navy",
+  },
+  legendContent: {
+    width: "90%",
+    padding: 15,
+    backgroundColor: "#f9f9f9",
+    borderRadius: 5,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+  },
+  legendTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 10,
+    color: "navy",
+    textAlign: "center",
+  },
+  legendText: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 8,
+    color: "#333",
+  },
+  legendTextBold: {
+    fontWeight: "bold",
   },
 });
 

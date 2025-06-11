@@ -27,17 +27,17 @@ export default function App() {
 
           <CustomButton
             title="Minitool1"
-            hadlePress={() => router.push("/minitool_1")}
+            handlePress={() => router.push("/minitool_1")}
             containerStyles="w-full mt-7"
           />
           <CustomButton
             title="Minitool2"
-            hadlePress={() => router.push("/minitool_2")}
+            handlePress={() => router.push("/minitool_2_index")}
             containerStyles="w-full mt-7"
           />
           <CustomButton
             title="Minitool3"
-            hadlePress={() => router.push("minitool_3")}
+            handlePress={() => router.push("minitool_3")}
             containerStyles="w-full mt-7"
           />
         </View>

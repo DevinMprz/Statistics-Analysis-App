@@ -186,18 +186,48 @@ function DotHistogramView(settings) {
       maxData
     );
 
-    const xAxisTicks =
-      xAxisStep !== null && xAxisStep > 0
-        ? (() => {
-            const ticks = [];
-            let current = Math.floor(minData / xAxisStep) * xAxisStep;
-            while (current <= maxData + 5) {
-              ticks.push(current);
-              current += xAxisStep;
-            }
-            return ticks;
-          })()
-        : xScale.ticks(Math.max(2, Math.floor(innerWidth / 60)));
+    const xAxisTicks = useMemo(() => {
+      if (xAxisStep !== null && xAxisStep > 0) {
+        const ticksArray = [];
+        // Ensure current starts at or before minData, aligned to xAxisStep
+        let current = Math.floor(minData / xAxisStep) * xAxisStep;
+        if (current > minData) {
+          // If minData is 103 and step is 5, first tick could be 100 or 105.
+          current -= xAxisStep; // Ensure we include a tick at or before minData
+        }
+        // Ensure the loop covers up to maxData, potentially one step beyond for full coverage
+        while (
+          current <=
+          maxData + (maxData % xAxisStep !== 0 ? xAxisStep : 0)
+        ) {
+          ticksArray.push(current);
+          if (current + xAxisStep <= current && xAxisStep > 0) {
+            // Avoid infinite loop if step is too small or zero
+            console.warn(
+              "Potential infinite loop in xAxisTicks generation due to xAxisStep value."
+            );
+            break;
+          }
+          current += xAxisStep;
+          if (ticksArray.length > 200) break; // Safety break for too many ticks
+        }
+        // Add maxData if it's not already a tick and not too close to the last tick
+        if (
+          !ticksArray.includes(maxData) &&
+          (ticksArray.length === 0 ||
+            maxData > ticksArray[ticksArray.length - 1] + xAxisStep / 2)
+        ) {
+          // ticksArray.push(maxData); // Decided against adding maxData explicitly if not a step multiple
+        }
+        return ticksArray.length > 0 ? ticksArray : xScale.ticks(5); // Fallback if array is empty
+      } else {
+        const numTicks =
+          dataset.length > 0
+            ? Math.max(3, Math.min(10, Math.floor(dataset.length / 5)))
+            : 1; // Adjusted divisor for potentially more ticks
+        return xScale.ticks(numTicks);
+      }
+    }, [xScale, xAxisStep, minData, maxData, dataset.length, innerWidth]); // Added innerWidth and dataset.length
 
     return (
       <View key={keyPrefix} style={styles.chartInstanceContainer}>
@@ -246,7 +276,7 @@ function DotHistogramView(settings) {
                 <Circle
                   key={`dot-${keyPrefix}-${i}`}
                   cx={xScale(d.value)}
-                  cy={baseline - (d.level - 1) * levelGap}
+                  cy={baseline - (d.level - 1) * levelGap - dotRadius - 1} // Adjusted cy
                   r={dotRadius}
                   fill={color}
                 />

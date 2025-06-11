@@ -38,7 +38,6 @@ export default function SpeedTrapScreen() {
               dotRadius={4}
               initialIntervalWidth={5}
               chartName="Vehicle Speeds"
-              xAxisStep={10}
             />
           </View>
         </ScrollView>

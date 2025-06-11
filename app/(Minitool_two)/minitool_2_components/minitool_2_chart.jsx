@@ -192,6 +192,20 @@ function CholesterolLevelChart(settings) {
     const currentChartHeight = Math.max(minChartHeight, requiredChartHeight);
     const baseline = currentChartHeight - margins.bottom;
 
+    // X-Axis Synchronization Safeguard
+    if (
+      innerWidth <= 0 ||
+      !isFinite(innerWidth) ||
+      baseline <= 0 ||
+      !isFinite(baseline)
+    ) {
+      return (
+        <Text key={`${datasetKey}-loading`}>
+          Calculating chart dimensions...
+        </Text>
+      );
+    }
+
     const [hoveredDot, setHoveredDot] = useState(null);
 
     const tapGesture = Gesture.Tap()
@@ -212,6 +226,7 @@ function CholesterolLevelChart(settings) {
       return [];
     }, [chartData, boxPlotMode]);
 
+    // Original calculateAndRenderCountsInGaps function definition remains here
     const calculateAndRenderCountsInGaps = () => {
       if (!boxCreationMode && thresholdLines.length === 0) return null;
 
@@ -254,19 +269,61 @@ function CholesterolLevelChart(settings) {
         .filter(Boolean);
     };
 
+    // Memoize the *result* of calling calculateAndRenderCountsInGaps
+    const memoizedGapCounts = useMemo(() => {
+      // Dependencies should match those that affect the output of calculateAndRenderCountsInGaps
+      return calculateAndRenderCountsInGaps();
+    }, [
+      boxCreationMode,
+      thresholdLines,
+      chartData,
+      xScale,
+      innerWidth,
+      axisColor,
+      margins.top,
+      datasetKey /*, other dependencies of calculateAndRenderCountsInGaps if any */,
+    ]);
+
     const xAxisTicksData = useMemo(() => {
       const ticksArr = [];
       if (xAxisStep !== null && xAxisStep > 0) {
         let current = Math.floor(minData / xAxisStep) * xAxisStep;
         while (current <= maxData + 5) {
+          // Ensure the last tick covers maxData if it's a step multiple
           ticksArr.push(current);
+          if (
+            current + xAxisStep > maxData + 5 &&
+            current < maxData + 5 &&
+            !ticksArr.includes(maxData + 5)
+          ) {
+            // Heuristic: if the next step goes beyond maxData, but maxData is not yet included,
+            // consider adding a tick closer to maxData or ensure range covers it.
+            // For simplicity, the loop condition handles most cases.
+            // Consider if specific handling for the last tick is needed if it doesn't align.
+          }
           current += xAxisStep;
+          // Safety break for very small xAxisStep to prevent infinite loops with floating point issues
+          if (ticksArr.length > 1000) break;
+        }
+        // Ensure the domain end is considered for a tick if not covered
+        if (
+          ticksArr.length > 0 &&
+          ticksArr[ticksArr.length - 1] < maxData &&
+          maxData - ticksArr[ticksArr.length - 1] > xAxisStep / 2
+        ) {
+          // This logic can be complex; d3.ticks is generally better for auto-generation.
+          // For manual step, ensure the range is well-covered or stick to simpler step logic.
         }
       } else {
-        return xScale.ticks(Math.max(2, Math.floor(innerWidth / 60))); // Auto ticks
+        // Dynamic calculation based on chartData.length
+        const numTicks = Math.max(
+          3,
+          Math.min(10, Math.ceil(chartData.length / 5) || 1)
+        );
+        return xScale.ticks(numTicks); // Auto ticks based on data length
       }
       return ticksArr;
-    }, [minData, maxData, xAxisStep, xScale, innerWidth]);
+    }, [minData, maxData, xAxisStep, xScale, chartData.length]); // Added chartData.length
 
     return (
       <View style={styles.chartInstanceContainer} key={datasetKey}>
@@ -418,7 +475,8 @@ function CholesterolLevelChart(settings) {
                 })}
 
               {/* Counts in Gaps */}
-              {boxCreationMode && calculateAndRenderCountsInGaps()}
+              {/* Use the memoized result here */}
+              {boxCreationMode && memoizedGapCounts}
 
               {/* Box Plot Separators */}
               {boxPlotSeparators.map((sepValue, i) => (

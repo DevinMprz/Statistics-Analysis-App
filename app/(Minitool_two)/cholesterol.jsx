@@ -37,7 +37,6 @@ export default function CholesterolScreen() {
               dataBefore={cholesterolDataBefore}
               dataAfter={cholesterolDataAfter}
               dotRadius={5}
-              xAxisStep={10}
               chartName="Cholesterol Levels"
             />
           </View>

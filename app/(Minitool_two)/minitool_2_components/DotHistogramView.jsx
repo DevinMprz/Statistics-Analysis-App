@@ -20,7 +20,7 @@ const defaultSettings = {
   height: 300,
   data: null,
   dotRadius: 4,
-  // dotColor: "green", // Will be set per chart
+  // dotColor: "blue", // Will be set per chart
   axisColor: "black",
   intervalLineColor: "gray",
   margins: { top: 40, bottom: 70, left: 40, right: 20 }, // Increased top margin for counts
@@ -362,9 +362,9 @@ function DotHistogramView(settings) {
           <Text style={styles.legendTitle}>Speed Trap Analysis</Text>
           <Text style={styles.legendText}>
             <Text style={styles.legendTextBold}>What is this?</Text> This chart
-            shows how many cars were recorded at different speeds. The green
+            shows how many cars were recorded at different speeds. The blue
             dots/bars represent speeds before a traffic calming measure (like a
-            new speed sign), and the pink dots/bars show speeds two months
+            new speed sign), and the oprange dots/bars show speeds two months
             later.
           </Text>
           <Text style={styles.legendText}>
@@ -393,13 +393,13 @@ function DotHistogramView(settings) {
       {/* Render two charts */}
       {renderChart(
         chartDataBefore,
-        "green",
+        "blue",
         "before",
         "Vehicle Speeds - April 2002"
       )}
       {renderChart(
         chartDataAfter,
-        "pink",
+        "oprange",
         "after",
         "Vehicle Speeds - Two months later"
       )}

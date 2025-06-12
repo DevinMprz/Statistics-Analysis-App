@@ -12,6 +12,7 @@ import { DotHistogramView as SpeedTrapHistogram } from "./minitool_2_components/
 import {
   dataBefore as speedDataBefore,
   dataAfter as speedDataAfter,
+  generateSpeedTrapData,
 } from "../../data/_data"; // Adjusted path
 
 const screenWidth = Dimensions.get("window").width;
@@ -34,7 +35,10 @@ export default function SpeedTrapScreen() {
             <SpeedTrapHistogram
               width={speedTrapHistogramContainerWidth}
               height={220}
-              data={[speedDataBefore, speedDataAfter]}
+              data={[
+                generateSpeedTrapData(200, 40, 70),
+                generateSpeedTrapData(200, 40, 65),
+              ]}
               dotRadius={4}
               initialIntervalWidth={5}
               chartName="Vehicle Speeds"

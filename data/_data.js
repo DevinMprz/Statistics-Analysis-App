@@ -50,7 +50,7 @@ export const generateSpeedTrapData = (count, minVal, maxVal) => {
   }
   for (let i = 0; i < count; i++) {
     const randomNumber = Math.random() * (maxVal - minVal) + minVal;
-    data.push(Math.round(randomNumber)); // Speed data as integers
+    data.push(parseFloat(randomNumber.toFixed(1)));
   }
   return data;
 };
@@ -75,4 +75,54 @@ export const calculateCombinedExtent = (datasets) => {
     return { min: 0, max: 100 }; // Default if no valid data
   }
   return { min: overallMin, max: overallMax };
+};
+
+// Remove old static imports if they exist:
+// import cholesterolSet1 from "./cholesterol_set1.json";
+// import cholesterolSet2 from "./cholesterol_set2.json";
+// import speedtrapSet1 from "./speedtrap_set1.json";
+
+/**
+ * Loads all datasets from JSON files in the current directory dynamically.
+ * @returns {Object} An object where keys are dataset names (derived from filenames)
+ *                   and values are the data arrays.
+ */
+export const loadAllDatasets = () => {
+  // Corrected regex: /\.json$/ means match a literal dot, then 'json', then end of string.
+  const context = require.context(".", false, /\.json$/);
+  const datasets = {};
+
+  console.log("[loadAllDatasets] Context keys found:", context.keys()); // <-- ADDED LOG
+
+  context.keys().forEach((key) => {
+    const fileNameWithExtension = key.substring(key.lastIndexOf("/") + 1);
+    const fileName = fileNameWithExtension.substring(
+      0,
+      fileNameWithExtension.lastIndexOf(".")
+    );
+
+    if (fileNameWithExtension === "_data.js") {
+      return;
+    }
+
+    let datasetName = fileName.replace(/[_-]/g, " ");
+    // Corrected: Capitalize the first letter of each word using a regex literal
+    datasetName = datasetName.replace(/\b\w/g, (char) => char.toUpperCase());
+    datasetName = datasetName.replace(
+      / (set)(\\d+)/i,
+      (match, p1, p2) => " Set " + p2
+    );
+    datasetName = datasetName.replace(
+      /^Set (\\d+)$/i,
+      (match, p1) => "Set " + p1
+    );
+    console.log(
+      `[loadAllDatasets] Processing key: ${key}, original fileName: ${fileName}, generated datasetName: ${datasetName}`
+    ); // <-- ADDED LOG
+
+    datasets[datasetName] = context(key);
+  });
+
+  console.log("[loadAllDatasets] Final datasets object:", datasets); // <-- ADDED LOG
+  return datasets;
 };

@@ -5,14 +5,7 @@ import React, {
   useRef,
   useEffect,
 } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  Button,
-  Switch,
-  TouchableOpacity,
-} from "react-native"; // Added TouchableOpacity
+import { View, Text, StyleSheet, Button, Switch } from "react-native"; // Added TouchableOpacity
 import Svg, { G, Circle, Line, Text as SvgText, Rect } from "react-native-svg";
 import { scaleLinear } from "d3-scale";
 import Animated from "react-native-reanimated";
@@ -129,7 +122,6 @@ function CholesterolLevelChart(settings) {
   const [thresholdLines, setThresholdLines] = useState([]); // For manual draggable lines and static guide boxes
   const [draggingLineId, setDraggingLineId] = useState(null);
   const dragInitialXRef = useRef(0);
-  const [isLegendOpen, setIsLegendOpen] = useState(false);
 
   // New state for consolidated grouping feature
   const [groupingType, setGroupingType] = useState("none"); // 'none', 'median', 'quartiles'
@@ -676,63 +668,9 @@ function CholesterolLevelChart(settings) {
 
   return (
     <Animated.View style={styles.wrapper}>
-      {/* Legend Toggle and Content */}
-      <TouchableOpacity
-        onPress={() => setIsLegendOpen(!isLegendOpen)}
-        style={styles.legendToggle}
-      >
-        <Text style={styles.legendToggleText}>
-          {isLegendOpen ? "▼" : "►"} About This Cholesterol Chart
-        </Text>
-      </TouchableOpacity>
-      {isLegendOpen && (
-        <View style={styles.legendContent}>
-          <Text style={styles.legendTitle}>Cholesterol Level Analysis</Text>
-          <Text style={styles.legendText}>
-            <Text style={styles.legendTextBold}>What is this?</Text> These
-            charts display cholesterol levels for a group of individuals. The{" "}
-            <Text style={{ color: "green", fontWeight: "bold" }}>GREEN</Text>{" "}
-            chart shows levels <Text style={styles.legendTextBold}>before</Text>{" "}
-            a dietary change, and the{" "}
-            <Text style={{ color: "pink", fontWeight: "bold" }}>PINK</Text>{" "}
-            chart shows levels <Text style={styles.legendTextBold}>after</Text>{" "}
-            the diet.
-          </Text>
-          <Text style={styles.legendText}>
-            <Text style={styles.legendTextBold}>Why is it useful?</Text>{" "}
-            Comparing the two charts helps to see if the diet had a positive
-            effect on lowering cholesterol. You can look for changes in how the
-            dots are spread out or grouped.
-          </Text>
-          <Text style={styles.legendText}>
-            <Text style={styles.legendTextBold}>What can you do?</Text>
-            {"\n"}- Toggle{" "}
-            <Text style={styles.legendTextBold}>'Show Data'</Text> to view or
-            hide the individual data points (dots).
-            {"\n"}- Enable{" "}
-            <Text style={styles.legendTextBold}>'Create Boxes'</Text>: Then, tap
-            directly on the chart area to add vertical lines. Small squares will
-            appear on these lines near the x-axis.
-            {"\n"}- <Text style={styles.legendTextBold}>Drag the squares</Text>{" "}
-            left or right to reposition the lines. The numbers appearing between
-            the lines (or between a line and the chart edge) show how many data
-            points fall into that specific cholesterol range.
-            {"\n"}- Use the{" "}
-            <Text style={styles.legendTextBold}>'Clear All Boxes'</Text> button
-            to remove all lines you've added.
-            {"\n"}- Select{" "}
-            <Text style={styles.legendTextBold}>'Groups: Two (Median)'</Text> or{" "}
-            <Text style={styles.legendTextBold}>'Four (Quartiles)'</Text> to
-            automatically divide the data into sections based on statistical
-            values (median or quartiles). This will replace any lines you've
-            manually created.
-          </Text>
-        </View>
-      )}
-
       <View style={styles.chartsContainer}>
-        {renderChartInternal(initialDataBefore, "before", "green")}
-        {renderChartInternal(initialDataAfter, "after", "pink")}
+        {renderChartInternal(initialDataBefore, "before", "blue")}
+        {renderChartInternal(initialDataAfter, "after", "orange")}
       </View>
 
       <View style={styles.controlsContainerUnderChart}>
@@ -851,47 +789,6 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 12,
     textAlign: "center",
-  },
-  legendToggle: {
-    backgroundColor: "#e0e0e0",
-    paddingVertical: 10,
-    paddingHorizontal: 15,
-    borderRadius: 5,
-    marginVertical: 10,
-    alignItems: "center",
-    width: "95%", // Match controlsContainerUnderChart width
-    alignSelf: "center",
-  },
-  legendToggleText: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "navy",
-  },
-  legendContent: {
-    width: "95%", // Match controlsContainerUnderChart width
-    alignSelf: "center",
-    padding: 15,
-    backgroundColor: "#f9f9f9",
-    borderRadius: 5,
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-  },
-  legendTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 10,
-    color: "navy",
-    textAlign: "center",
-  },
-  legendText: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 8,
-    color: "#333",
-  },
-  legendTextBold: {
-    fontWeight: "bold",
   },
 });
 

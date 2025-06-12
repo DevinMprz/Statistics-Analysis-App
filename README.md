@@ -11,7 +11,6 @@
   - [Minitool 2: Speed trap scenario, Cholesterol Level](#minitool-2-speed-trap-scenario-cholesterol-level)
   - [Minitool 3: Bivariate Scatter & Partitioning](#minitool-3-bivariate-scatter--partitioning)
 - [Sample Data](#sample-data)
-- [License](#license)
 
 ## Features
 
@@ -53,7 +52,16 @@ npm run start
 
 ### Minitool 1: Life Span of Batteries
 
-...
+Objects that include value and label properties.
+```
+Example: [
+  {value: 10, label: "Tough cell"},
+  {value: 20, label: "Always Ready"},
+  {value: 30, label: "Tough cell"},
+  {value: 40, label: "Always Ready"},
+  ...
+  ]
+```
 
 ### Minitool 2: Speed trap scenario, Cholesterol Level
 

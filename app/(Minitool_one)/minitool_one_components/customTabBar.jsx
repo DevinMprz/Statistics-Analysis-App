@@ -30,7 +30,7 @@ const CustomTabBar = ({ customTabs, platform }) => {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#e5e7eb',
-    paddingBottom: 20,
+    paddingBottom: 35,
     paddingTop: 10,
     elevation: 8,
   },
@@ -39,7 +39,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-evenly',
     backgroundColor: '#80c1ff',
     borderRadius: 12,
-    padding: 4,
+    paddingBottom: 30,
   },
 });
 

@@ -401,7 +401,7 @@ const Minitool_1 = ({
 						<Text style={styles.text}>Life Span of Batteries</Text>
 					 
 						<View style={{
-							height: platform === 'web' ? height * 0.85 : height * 0.7 , 
+							height: platform === 'web' ? height * 0.85 : height * 0.9 , 
 							width: width, 
 							margin: 0, 
 							flexDirection: platform === 'web' ? 'row': 'column', 

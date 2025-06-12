@@ -15,7 +15,7 @@
 
 ## Features
 
-- **Life Span of Batteries**: Compare vehicle speeds before and after enforcement with dot plots and adjustable histograms.
+- **Life Span of Batteries**: This minitool allows students to explore and compare the life span of two different battery brands—Always Ready and Tough Cell.
 - **Speed trap scenario**: Analyse changes in behaviour of traffic after the police implemented a speed trap on that section of the highway.
 - **Cholesterol Level**: Analyse the changes of cholesterol level of the pacients of medical experiment, that came through certain diet.
 - **Bivariate Scatter & Partitioning**: Dynamic scatter plot with draggable quadrants, customizable grids, and equal-group slicing for two-variable relationships.
@@ -57,10 +57,10 @@ npm run start
 
 ### Minitool 2: Speed trap scenario, Cholesterol Level
 
-Values of individual records, separated by comma
+Values of individual records in brackets, separated by comma
 
 ```
-Example: 10,20,30...
+Example: [10,20,30...]
 ```
 
 ### Minitool 3: Bivariate Scatter & Partitioning

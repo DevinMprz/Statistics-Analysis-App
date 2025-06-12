@@ -399,7 +399,7 @@ function DotHistogramView(settings) {
       )}
       {renderChart(
         chartDataAfter,
-        "oprange",
+        "orange",
         "after",
         "Vehicle Speeds - Two months later"
       )}

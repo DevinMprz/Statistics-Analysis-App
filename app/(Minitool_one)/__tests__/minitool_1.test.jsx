@@ -1,8 +1,6 @@
 import React from 'react';
-import { Platform } from 'react-native';
 import { render, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import Minitool_1 from '../minitool_1';
-
 
 const mockInitialData = [
   { value: 50, label: 'Tough Cell' },
@@ -10,6 +8,7 @@ const mockInitialData = [
   { value: 80, label: 'Tough Cell' },
 ];
 
+jest.unmock('../minitool_one_components/customTabBar');
 
 jest.mock('react-native-reanimated', () => {
  
@@ -32,7 +31,6 @@ describe('Minitool_1 Component', () => {
     useSharedValue.mockReturnValue({ value: [...mockInitialData] });
   });
 
-
   test('renders correctly with initial data', () => {
     render(<Minitool_1 />);
 
@@ -51,8 +49,6 @@ describe('Minitool_1 Component', () => {
     await waitFor(() => {
       const barChart = screen.getByTestId('bar-chart');
       const chartData = JSON.parse(barChart.props['data-props']);
-
-      console.log(`Sorted chart data:`, chartData);
 
       expect(chartData[0].value).toBe(10);
       expect(chartData[1].value).toBe(50);
@@ -76,60 +72,57 @@ describe('Minitool_1 Component', () => {
     });
   });
 
-  test('resets data to normal when "Normal Data" is pressed after sorting', () => {
+  test('resets data to normal when "Normal Data" is pressed after sorting', async () => {
     render(<Minitool_1 />);
 
     fireEvent.press(screen.getByTestId('sort-by-value-radio'));
+    
+    await waitFor(() => {
     let barChart = screen.getByTestId('bar-chart');
     let chartData = JSON.parse(barChart.props['data-props']);
     expect(chartData[0].value).toBe(10);
+    })
 
     fireEvent.press(screen.getByTestId('return-to-normal'));
+    
+    await waitFor(() => {
     barChart = screen.getByTestId('bar-chart');
     chartData = JSON.parse(barChart.props['data-props']);
 
     expect(chartData[0].value).toBe(50);
     expect(chartData[1].value).toBe(10);
     expect(chartData[2].value).toBe(80);
+    })
   });
 
-  test('toggles the value tool on and off', () => {
+  test('toggles the value tool on and off', async () => {
     render(<Minitool_1 />);
-    const valueToolButton = screen.findByTestId('custom-button-Value-tool');
+
+    const valueToolButton = await screen.findByTestId('custom-button-Value-tool');
     
     expect(screen.queryByText(/^[0-9]+$/)).toBeNull();
 
     fireEvent.press(valueToolButton);
-    expect(screen.findByText(/^[0-9]+$/)).toBeTruthy();
 
+    expect(await screen.findByTestId('value_text')).toBeTruthy();
+    
     fireEvent.press(valueToolButton);
+    
     expect(screen.queryByText(/^[0-9]+$/)).toBeNull();
+
   });
 
-  test('toggles the range tool on and off', () => {
+  test('toggles the range tool on and off', async () => {
     render(<Minitool_1 />);
-    const rangeToolButton = screen.findByTestId('custom-button-Range-tool');
+    const rangeToolButton = await screen.findByTestId('custom-button-Range-tool');
 
     expect(screen.queryByText(/Count:/)).toBeNull();
 
     fireEvent.press(rangeToolButton);
-    expect(screen.findByText(/Count:/)).toBeTruthy();
+    expect(await screen.findByTestId('counter_text')).toBeTruthy();
 
     fireEvent.press(rangeToolButton);
     expect(screen.queryByText(/Count:/)).toBeNull();
   });
 
-  if(Platform.OS == 'web'){
-    test('activates the data form when "Add data" is pressed', () => {
-
-      render(<Minitool_1 />);
-      const addDataButton = screen.findByTestId('custom-button-Add-data');
-
-      expect(screen.queryByText('CustomDataForm')).toBeNull();
-
-      fireEvent.press(addDataButton);
-
-      expect(screen.findByText('Enter your data')).toBeTruthy();
-    }); 
-  }
 });

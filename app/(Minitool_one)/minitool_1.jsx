@@ -431,6 +431,7 @@ const Minitool_1 = ({
 											y={50}
 											fontSize={20}
 											fill={'#000099'}
+											testID={'value_text'}
 										>
 											{xScale.invert(animatedX.value - 15).toFixed(0) - offset}
 										</AnimatedSvgText>
@@ -479,6 +480,7 @@ const Minitool_1 = ({
 											y={30}
 											fontSize={20}
 											fill={'#f53b57'}
+											testID={'counter_text'}
 										>
 											{`Count: ${handleCounterArea()}`}
 										</SvgText>
@@ -575,9 +577,9 @@ const Minitool_1 = ({
 											
 				</ScrollView>
 				<CustomTabBar
-						customTabs={platform === 'web' ? tabs.concat(additionalTabs) : tabs}
+						customTabs={platform === 'web' ? tabs.concat(additionalTabs) : tabs }
 						platform={platform}
-					/> 
+					/>
 		</GestureHandlerRootView>		  		
 )}
 

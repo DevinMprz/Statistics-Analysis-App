@@ -4,8 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from "expo-status-bar";
 import { logo } from "../constants/icons";
 import { Redirect, router } from "expo-router";
-
-//import logo from "../assets/newLogo.png";
 import CustomButton from '../components/customButton';
 
 export default function App() {
@@ -29,7 +27,7 @@ export default function App() {
           <CustomButton
             title = "Minitool1"
             hadlePress={() => router.push('/minitool_1')}
-            containerStyles = "bg-sky-400/75 w-full mt-7"
+            containerStyles = "bg-sky-400/75 w-full mt-7"     
           />
           <CustomButton
             title = "Minitool2"

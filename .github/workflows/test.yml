@@ -8,13 +8,13 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18' # Use a recent LTS version of Node.js
-          cache: 'npm' # Cache npm packages to speed up future runs
+          node-version: '18' 
+          cache: 'npm' 
 
       - name: Install dependencies
         run: npm install
@@ -22,10 +22,9 @@ jobs:
       - name: Run Jest tests
         run: npm test -- --ci --json --outputFile=test-results.json
 
-      # (Optional) Step to upload test results as an artifact
       - name: Upload test results
-        if: always() # This ensures the step runs even if tests fail
-        uses: actions/upload-artifact@v3
+        if: always() 
+        uses: actions/upload-artifact@v4
         with:
           name: test-results
           path: test-results.json

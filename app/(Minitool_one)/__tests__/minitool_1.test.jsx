@@ -3,20 +3,20 @@ import { Platform } from 'react-native';
 import { render, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import Minitool_1 from '../minitool_1';
 
-// Mock initial data to have a predictable state for tests
+
 const mockInitialData = [
   { value: 50, label: 'Tough Cell' },
   { value: 10, label: 'Always Ready' },
   { value: 80, label: 'Tough Cell' },
 ];
 
-// --- CHANGE #1: Define useSharedValue as a Jest mock function ---
+
 jest.mock('react-native-reanimated', () => {
-  // Use the actual mock and extend it
+ 
   const Reanimated = jest.requireActual('react-native-reanimated/mock'); 
   return {
     ...Reanimated,
-    useSharedValue: jest.fn(), // This makes it a mock function we can configure
+    useSharedValue: jest.fn(), 
     useAnimatedStyle: (callback) => callback(),
     runOnJS: (fn) => fn,
     clamp: (val, min, max) => Math.min(Math.max(val, min), max),
@@ -29,8 +29,6 @@ describe('Minitool_1 Component', () => {
   beforeEach(() => {
     const { useSharedValue } = require('react-native-reanimated');
     
-    // --- CHANGE #2: Use .mockReturnValue() to set the data for each test ---
-    // The component expects useSharedValue() to return an object with a `.value` property.
     useSharedValue.mockReturnValue({ value: [...mockInitialData] });
   });
 

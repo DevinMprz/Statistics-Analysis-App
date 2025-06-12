@@ -5,7 +5,7 @@ import { StyleSheet } from "react-native";
 import CustomDataInput from "./customDataInput";
 
 const CustomDataForm = ({ formHandler, testID }) => {
-    testID={testID}
+     
     const mainRef = useRef(null)
     const addButtonRef = useRef(null)
     const removeButtonRef = useRef(null)

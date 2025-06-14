@@ -1,6 +1,6 @@
 import React, { useEffect, useState} from 'react';
-import { StyleSheet, View, Text, Switch, useWindowDimensions, Platform, SafeAreaView, StatusBar } from 'react-native';
-import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { StyleSheet, View, Text, Switch, useWindowDimensions, Platform, SafeAreaView, StatusBar, Modal, Button, Dimensions, TextInput } from 'react-native';
+import { Gesture, GestureDetector, GestureHandlerRootView, ScrollView } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
   useAnimatedProps,
@@ -11,6 +11,8 @@ import Animated, {
   withTiming, // --- NEW ---: Import withTiming for smooth transitions
 } from 'react-native-reanimated';
 import Svg, { Rect, Circle, Line, G, Text as SvgText } from 'react-native-svg';
+import initialBatteryData from '../../data/batteryScenario_set.json';
+
 
 const AnimatedG = Animated.createAnimatedComponent(G);
 const AnimatedRect = Animated.createAnimatedComponent(Rect);
@@ -28,10 +30,10 @@ const RANGE_TOOL_COLOR = '#0000FF';
 const RANGE_HIGHLIGHT_COLOR = '#ff0000';
 const RANGE_HANDLE_SIZE = 15;
 
-const initialBatteryData = [
-  { brand: 'Tough Cell', lifespan: 114 }, { brand: 'Tough Cell', lifespan: 102 }, { brand: 'Tough Cell', lifespan: 110 }, { brand: 'Tough Cell', lifespan: 120 }, { brand: 'Tough Cell', lifespan: 106 }, { brand: 'Tough Cell', lifespan: 88 }, { brand: 'Tough Cell', lifespan: 105 }, { brand: 'Tough Cell', lifespan: 82 }, { brand: 'Tough Cell', lifespan: 92 }, { brand: 'Tough Cell', lifespan: 98 },
-  { brand: 'Always Ready', lifespan: 112 }, { brand: 'Always Ready', lifespan: 74 }, { brand: 'Always Ready', lifespan: 115 }, { brand: 'Always Ready', lifespan: 109 }, { brand: 'Always Ready', lifespan: 112 }, { brand: 'Always Ready', lifespan: 46 }, { brand: 'Always Ready', lifespan: 110 }, { brand: 'Always Ready', lifespan: 104 }, { brand: 'Always Ready', lifespan: 98 }, { brand: 'Always Ready', lifespan: 116 },
-];
+// const initialBatteryData = [
+//   { brand: 'Tough Cell', lifespan: 114 }, { brand: 'Tough Cell', lifespan: 102 }, { brand: 'Tough Cell', lifespan: 110 }, { brand: 'Tough Cell', lifespan: 120 }, { brand: 'Tough Cell', lifespan: 106 }, { brand: 'Tough Cell', lifespan: 88 }, { brand: 'Tough Cell', lifespan: 105 }, { brand: 'Tough Cell', lifespan: 82 }, { brand: 'Tough Cell', lifespan: 92 }, { brand: 'Tough Cell', lifespan: 98 },
+//   { brand: 'Always Ready', lifespan: 112 }, { brand: 'Always Ready', lifespan: 74 }, { brand: 'Always Ready', lifespan: 115 }, { brand: 'Always Ready', lifespan: 109 }, { brand: 'Always Ready', lifespan: 112 }, { brand: 'Always Ready', lifespan: 46 }, { brand: 'Always Ready', lifespan: 110 }, { brand: 'Always Ready', lifespan: 104 }, { brand: 'Always Ready', lifespan: 98 }, { brand: 'Always Ready', lifespan: 116 },
+// ];
 
 // --- Chart Layout Constants ---
 const PLATFORM = Platform.OS;
@@ -80,9 +82,10 @@ const BatteryBar = ({ item, index, chartWidth, rangeStartX, rangeEndX, tool }) =
   );
 };
 
-
+const  {width, height} = Dimensions.get('window');
 const Minitool_1 = () => {
-	const { width: windowWidth } = useWindowDimensions();
+		const { width: windowWidth } = useWindowDimensions();
+		 const [currentBatteryData, setCurrentBatteryData] = useState(initialBatteryData);
 		const [displayedData, setDisplayedData] = useState(initialBatteryData);
 		const [isSortedBySize, setIsSortedBySize] = useState(false);
 		const [isSortedByColor, setIsSortedByColor] = useState(false);
@@ -92,10 +95,15 @@ const Minitool_1 = () => {
 		// --- NEW ---: State for controlling tool visibility
 		const [valueToolActive, setValueToolActive] = useState(false);
 		const [rangeToolActive, setRangeToolActive] = useState(false);
+		const [isModalVisible, setIsModalVisible] = useState(false);
+		const [minLifespanInput, setMinLifespanInput] = useState('40');
+		const [maxLifespanInput, setMaxLifespanInput] = useState('120');
+		const [toughCellCountInput, setToughCellCountInput] = useState('10');
+		const [alwaysReadyCountInput, setAlwaysReadyCountInput] = useState('10');
 	
 		const SVG_WIDTH = windowWidth - PADDING * 2;
 		const chartWidth = SVG_WIDTH - Y_AXIS_WIDTH > 0 ? SVG_WIDTH - Y_AXIS_WIDTH : 1;
-		const chartHeight = displayedData.length * (BAR_HEIGHT + BAR_SPACING);
+		const chartHeight = 20 * (BAR_HEIGHT + BAR_SPACING);
 		const SVG_HEIGHT = chartHeight + X_AXIS_HEIGHT + TOP_BUFFER;
 		
 		// --- Single Tool Gesture Logic (No changes here) ---
@@ -195,24 +203,24 @@ const Minitool_1 = () => {
 		
 		// --- Sorting Handlers (No changes here) ---
 		const handleSortBySize = (isActive) => {
-			setIsSortedBySize(isActive);
-			if (isActive) {
-				setIsSortedByColor(false);
-				setDisplayedData([...initialBatteryData].sort((a, b) => a.lifespan - b.lifespan));
-			} else if (!isSortedByColor) {
-				setDisplayedData(initialBatteryData);
-			}
-		};
+    setIsSortedBySize(isActive);
+    if (isActive) {
+      setIsSortedByColor(false);
+      setDisplayedData([...currentBatteryData].sort((a, b) => a.lifespan - b.lifespan));
+    } else if (!isSortedByColor) {
+      setDisplayedData(currentBatteryData);
+    }
+  };
 	
 		const handleSortByColor = (isActive) => {
-			setIsSortedByColor(isActive);
-			if (isActive) {
-				setIsSortedBySize(false);
-				setDisplayedData([...initialBatteryData].sort((a, b) => a.brand.localeCompare(b.brand)));
-			} else if (!isSortedBySize) {
-				setDisplayedData(initialBatteryData);
-			}
-		};
+    setIsSortedByColor(isActive);
+    if (isActive) {
+      setIsSortedBySize(false);
+      setDisplayedData([...currentBatteryData].sort((a, b) => a.brand.localeCompare(b.brand)));
+    } else if (!isSortedBySize) {
+      setDisplayedData(currentBatteryData);
+    }
+  };
 		
 		// --- MODIFIED ---: Simplified toggle handlers
 		const handleValueTool = (isActive) => {
@@ -220,6 +228,41 @@ const Minitool_1 = () => {
 		};
 		const handleRangeTool = (isActive) => {
 			setRangeToolActive(isActive);
+		};
+
+		const handleGenerateData = () => {
+				const min = parseInt(minLifespanInput, 10);
+				const max = parseInt(maxLifespanInput, 10);
+				const toughCellCount = parseInt(toughCellCountInput, 10);
+				const alwaysReadyCount = parseInt(alwaysReadyCountInput, 10);
+		
+				if (isNaN(min) || isNaN(max) || isNaN(toughCellCount) || isNaN(alwaysReadyCount) || min >= max || min < 0 || toughCellCount < 0 || alwaysReadyCount < 0) {
+					Alert.alert("Invalid Input", "Please check your values. Min must be less than Max, and all counts must be positive numbers.");
+					return;
+				}
+		
+				const newData = [];
+				const getRandomLifespan = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+		
+				for (let i = 0; i < toughCellCount; i++) {
+					newData.push({ brand: 'Tough Cell', lifespan: getRandomLifespan(min, max) });
+				}
+				for (let i = 0; i < alwaysReadyCount; i++) {
+					newData.push({ brand: 'Always Ready', lifespan: getRandomLifespan(min, max) });
+				}
+		
+				setCurrentBatteryData(newData);
+				setDisplayedData(newData);
+				setIsSortedByColor(false);
+				setIsSortedBySize(false);
+				setIsModalVisible(false);
+			};
+
+			const handleResetData = () => {
+			setCurrentBatteryData(initialBatteryData);
+			setDisplayedData(initialBatteryData);
+			setIsSortedByColor(false);
+			setIsSortedBySize(false);
 		};
 	
 	return (
@@ -237,7 +280,7 @@ const Minitool_1 = () => {
 							<View style={styles.switchControl}><Text>Sort by Size</Text><Switch value={isSortedBySize} onValueChange={handleSortBySize} /></View>
 						</View>
 			
-						<View style={[styles.chartContainer, { height: SVG_HEIGHT + TOOL_LABEL_OFFSET_Y }]}>
+						{ !isModalVisible && (<View style={[styles.chartContainer, { height: SVG_HEIGHT + TOOL_LABEL_OFFSET_Y }]}>
 							
 							{/* --- MODIFIED ---: Always render the label, let animated style control opacity */}
 							<Animated.View style={[styles.toolLabelContainer, { left: Y_AXIS_WIDTH, top: TOP_BUFFER }, animatedLabelStyle]}>
@@ -297,22 +340,103 @@ const Minitool_1 = () => {
 								
 								<Line x1={Y_AXIS_WIDTH} y1={TOP_BUFFER} x2={Y_AXIS_WIDTH} y2={chartHeight + TOP_BUFFER} stroke={AXIS_COLOR} strokeWidth="1"/>
 							</Svg>
-						</View>
-						 <View style={styles.controlsContainer}>
+						</View>)}
+						
+						<View style={styles.controlsContainer}>
 							<View style={styles.switchControl}><Text>Value tool</Text><Switch value={valueToolActive} onValueChange={handleValueTool} /></View>
 							<View style={styles.switchControl}><Text>Range tool</Text><Switch value={rangeToolActive} onValueChange={handleRangeTool} /></View>
 						</View>
+						
 						<Text style={styles.xAxisTitle}>Life Span (hours)</Text>
-					</SafeAreaView>
+						
+						<View style={styles.bottomButtonContainer}>
+							<Button title="Reset to Initial Data" onPress={handleResetData} color="#841584" />
+							<Button title="Generate New Data" onPress={() => setIsModalVisible(true)} />
+						</View>
+						
+						<Modal
+							animationType="slide"
+							transparent={true}
+							visible={isModalVisible}
+							onRequestClose={() => setIsModalVisible(!isModalVisible)}
+						>
+							<View style={styles.modalCenteredView}>
+								<View style={styles.modalView}>
+									<Text style={styles.modalText}>Generate New Data</Text>
+									<View style={styles.inputRow}><Text style={styles.inputLabel}>Min Lifespan:</Text><TextInput style={styles.input} onChangeText={setMinLifespanInput} value={minLifespanInput} keyboardType="numeric" /></View>
+									<View style={styles.inputRow}><Text style={styles.inputLabel}>Max Lifespan:</Text><TextInput style={styles.input} onChangeText={setMaxLifespanInput} value={maxLifespanInput} keyboardType="numeric" /></View>
+									<View style={styles.inputRow}><Text style={styles.inputLabel}>Tough Cell Count:</Text><TextInput style={styles.input} onChangeText={setToughCellCountInput} value={toughCellCountInput} keyboardType="numeric" /></View>
+									<View style={styles.inputRow}><Text style={styles.inputLabel}>Always Ready Count:</Text><TextInput style={styles.input} onChangeText={setAlwaysReadyCountInput} value={alwaysReadyCountInput} keyboardType="numeric" /></View>
+									<View style={styles.modalButtonContainer}>
+										<Button title="Cancel" color="gray" onPress={() => setIsModalVisible(false)} />
+										<Button title="Generate" onPress={handleGenerateData} />
+									</View>
+								</View>
+							</View>
+						</Modal>
+			</SafeAreaView>
 		</GestureHandlerRootView>		
 )}
 
 const styles = StyleSheet.create({
+	modalCenteredView: {
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',   
+    width: width,
+    height: height,
+  },
+  modalView: {
+    margin: 20, 
+    backgroundColor: 'white', 
+    borderRadius: 20, 
+    padding: 25, 
+    alignItems: 'center', 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 2 }, 
+    shadowOpacity: 0.25, 
+    shadowRadius: 4, 
+    elevation: 5, 
+    width: '90%',
+    height: height * 0.5, 
+},
+  modalText: { 
+		marginBottom: 20, 
+		textAlign: 'center', 
+		fontSize: 18, 
+		fontWeight: 'bold' 
+	},
+  inputRow: { 
+		flexDirection: 'row', 
+		alignItems: 'center', 
+		marginBottom: 12, 
+		width: '100%' 
+	},
+  inputLabel: { 
+		flex: 2, 
+		fontSize: 14, 
+		marginRight: 10 
+	},
+  input: { 
+		flex: 1, 
+		height: 40, 
+		borderWidth: 1, 
+		borderColor: '#ccc', 
+		padding: 10, 
+		borderRadius: 5, 
+		textAlign: 'center' 
+	},
+  modalButtonContainer: { 
+		flexDirection: 'row', 
+		justifyContent: 'space-around', 
+		width: '100%', 
+		marginTop: 20 
+	},
 	container: {
 		flex: 1,
 		backgroundColor: '#e5e7eb',
 		paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0, 
-		//padding: PADDING, 
 		alignItems: 'center', 
 		margin: 0, 
 		borderWidth: 1, 
@@ -349,6 +473,12 @@ const styles = StyleSheet.create({
 		borderTopWidth: 1, 
 		borderBottomWidth: 1, 
 		borderColor: '#f0f0f0' 
+	},
+	modalButtonContainer: { 
+		flexDirection: 'row', 
+		justifyContent: 'space-around', 
+		width: '100%', 
+		marginTop: 20 
 	},
 	switchControl: { 
 		alignItems: 'center' 

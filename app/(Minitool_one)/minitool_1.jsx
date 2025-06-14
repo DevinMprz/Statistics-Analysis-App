@@ -1,660 +1,471 @@
-import React, { useState, useMemo, useEffect} from 'react';
-import { View, Text, ScrollView, Dimensions, StyleSheet, StatusBar, Platform} from 'react-native';
-import { BarChart } from 'react-native-gifted-charts';
+import React, { useEffect, useState} from 'react';
+import { StyleSheet, View, Text, Switch, useWindowDimensions, Platform } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, useSharedValue, runOnJS, clamp} from 'react-native-reanimated';
-import { Line, Svg, Text as SvgText} from 'react-native-svg'
-import {scaleLinear} from 'd3-scale'
-import { RadioButton } from 'react-native-paper';
-import CustomTabBar from './minitool_one_components/customTabBar';
-import CustomButton from '../../components/customButton';
-import CustomDataForm from './minitool_one_components/customDataForm';
+import Animated, {
+  useSharedValue,
+  useAnimatedProps,
+  useAnimatedStyle,
+  useAnimatedReaction,
+  runOnJS,
+  clamp,
+  withTiming, // --- NEW ---: Import withTiming for smooth transitions
+} from 'react-native-reanimated';
+import Svg, { Rect, Circle, Line, G, Text as SvgText } from 'react-native-svg';
+import { StatusBar } from "expo-status-bar";
 
+const AnimatedG = Animated.createAnimatedComponent(G);
+const AnimatedRect = Animated.createAnimatedComponent(Rect);
+const AnimatedLine = Animated.createAnimatedComponent(Line);
 
+// --- Configuration & Initial Data ---
+const TOUGH_CELL_COLOR = '#33cc33';
+const ALWAYS_READY_COLOR = '#cc00ff';
+const AXIS_COLOR = '#333';
+const DOT_COLOR = '#000';
+const TOOL_COLOR = 'red';
+const MAX_LIFESPAN = 140;
 
-const initialData = [
-    {value: 10, label: 'Always Ready' },
-    {value: 30, label: 'Tough Cell' },
-    {value: 50, label: 'Always Ready' },
-    {value: 80, label: 'Tough Cell' },
-    {value: 100, label: 'Always Ready' },
-    {value: 50, label: 'Tough Cell' },
-    {value: 130, label: 'Always Ready' },
-    {value: 140, label: 'Tough Cell' },
-    {value: 55, label: 'Always Ready' },
-    {value: 77, label: 'Tough Cell' },
-    {value: 150, label: 'Always Ready' },
-    {value: 122, label: 'Tough Cell' },
-    {value: 130, label: 'Always Ready' },
-    {value: 134, label: 'Tough Cell' },
-    {value: 96, label: 'Always Ready' },
-    {value: 50, label: 'Tough Cell' },
-    {value: 98, label: 'Always Ready' },
-    {value: 130, label: 'Tough Cell' },
-    {value: 68, label: 'Always Ready' },
-    {value: 144, label: 'Tough Cell' },	
+const RANGE_TOOL_COLOR = '#0000FF';
+const RANGE_HIGHLIGHT_COLOR = '#ff0000';
+const RANGE_HANDLE_SIZE = 15;
+
+const initialBatteryData = [
+  { brand: 'Tough Cell', lifespan: 114 }, { brand: 'Tough Cell', lifespan: 102 }, { brand: 'Tough Cell', lifespan: 110 }, { brand: 'Tough Cell', lifespan: 120 }, { brand: 'Tough Cell', lifespan: 106 }, { brand: 'Tough Cell', lifespan: 88 }, { brand: 'Tough Cell', lifespan: 105 }, { brand: 'Tough Cell', lifespan: 82 }, { brand: 'Tough Cell', lifespan: 92 }, { brand: 'Tough Cell', lifespan: 98 },
+  { brand: 'Always Ready', lifespan: 112 }, { brand: 'Always Ready', lifespan: 74 }, { brand: 'Always Ready', lifespan: 115 }, { brand: 'Always Ready', lifespan: 109 }, { brand: 'Always Ready', lifespan: 112 }, { brand: 'Always Ready', lifespan: 46 }, { brand: 'Always Ready', lifespan: 110 }, { brand: 'Always Ready', lifespan: 104 }, { brand: 'Always Ready', lifespan: 98 }, { brand: 'Always Ready', lifespan: 116 },
 ];
 
-const  {width, height} = Dimensions.get('window');
-const platform = Platform.OS;
+// --- Chart Layout Constants ---
+const PLATFORM = Platform.OS;
+const MOBILE_TICKS = 6;
+const WEB_TICKS = 10;
+const MOBILE_VALUE_STEP = 26;
+const WEB_VALUE_STEP = 14;
+const PADDING = 0;
+const Y_AXIS_WIDTH = 30;
+const BAR_HEIGHT = 8;
+const BAR_SPACING = 7;
+const X_AXIS_HEIGHT = 20;
+const TOOL_LABEL_OFFSET_Y = 25;
+const RANGE_LABEL_OFFSET_Y = 15;
+const TOP_BUFFER = RANGE_LABEL_OFFSET_Y + 10;
 
-const Minitool_1 = ({
-	graph_config = {
-		barWidth: 10,
-		spacing: 10,
-		barBorderRadius: 5,
-		get height() {
-			return (this.barWidth + this.spacing) * 20 + 20;
-		},
-		width: width * 0.75,
-		shiftX: platform === 'web' ? 0 : -(width * 0.1),
-		noteOfSections: platform !== 'android' && platform !== 'ios' ? 12 : 6,
-		stepValue: platform === 'web' ? 14 : 28,
-	},
-	offset = platform === 'web' ? 3 : 24,
-}) => {
- const mainContainer = {
-		height: graph_config.height + 180,
-		width	: graph_config.width + 190,
-	};
+// --- Bar Component (No changes here) ---
+const BatteryBar = ({ item, index, chartWidth, rangeStartX, rangeEndX, tool }) => {
+  const yPos = index * (BAR_HEIGHT + BAR_SPACING);
+  const originalColor = item.brand === 'Tough Cell' ? TOUGH_CELL_COLOR : ALWAYS_READY_COLOR;
+  const [barColor, setBarColor] = useState(originalColor);
+  const barEndPosition = (item.lifespan / MAX_LIFESPAN) * chartWidth;
 
-	// State for active tools, can be 'value', 'range', 'none' and 'both'
-	// It helps to display tools
-	const [activeTool, setActiveTool] = useState('none');
-
-	//Shared value for data, which is used by barChart to change data
-	//State allows to return to intiall data if user wants to
-	const data = useSharedValue(initialData);
-	const [originalData, setOriginalData] = useState(data.value);
-	//State which is triggered by special customForm, which allows user
-	//to paste his own data
-	const [isFormActive, setIsFormActive] = useState(false);
-	
-	useEffect(() => {
-		if(platform === 'web'){
-			const loaded = [];
-
-			Object.keys(localStorage).forEach((key) => {
-			try {
-				const item = JSON.parse(localStorage.getItem(key));
-				if (item && typeof item === "object" && item.value && item.label) {
-					loaded.push({ value: item.value, label: item.label });
-				}
-			} catch (e) {
-				console.warn("Invalid JSON in localStorage:", key);
-			}
-			});
-
-			loaded.length === 0 ? data.value = initialData : data.value = loaded;
-			setOriginalData(data.value);
-			localStorage.clear();
-		}
-	}, [isFormActive]);
-	
-	//State for 3 radio buttons, used to sort data
-	const [checked, setChecked] = useState('normal');
-	//Sorts data by it's label
-	const sortByLabel = () => {
-	  const sortedData = [...data.value].sort((a, b) => a.label.localeCompare(b.label));
-	  data.value = (sortedData);
-	  setChecked('label');
-	};
-	//Sorts data by Values(from lowest -> to higest)
-	const sortByValue = () => {
-		const sortedData = [...data.value].sort((a,b) => a.value - b.value);
-		data.value = (sortedData);
-		setChecked('value');
-	}
-	//Back to unsorted data
-	const resetData = () => {
-		data.value = (originalData);
-		setChecked('normal'); 
-	};	
-	
-
-	//Special function which allows to map linear x values to data range x values
-	const maxXvalue = graph_config.stepValue * graph_config.noteOfSections;
-	const xScale = useMemo(
-    () => scaleLinear().domain([0, maxXvalue]).range([0 + graph_config.shiftX, graph_config.width + graph_config.shiftX]),
-    [maxXvalue, graph_config.width]
-  );
-	//"Value tool"--------------------------------------------
-	const translationX = useSharedValue((maxXvalue /2))
-  const prevTranslationX = useSharedValue(0);
-	//Special const whic is used to draw separator line and display value of "Value tool"
-	const animatedX = useSharedValue((maxXvalue /2) + 15);
-
-	const [isPanning, setIsPanning] = useState(false); 
-	const pan = Gesture.Pan()
-		 .onStart(() => {
-				runOnJS(setIsPanning)(true);
-			 	prevTranslationX.value = translationX.value;
-		 })
-		 .onUpdate((event) => {
-			runOnJS(setIsPanning)(true);
-			 	translationX.value = clamp(0, event.translationX + prevTranslationX.value, graph_config.width);
-			 	animatedX.value = translationX.value + 15;
-		 })
-		 .onEnd(() =>{
-			runOnJS(setIsPanning)(false);
-		 });
-
-	 const separatorMovement = useAnimatedStyle(() => ({
-		 transform: [{ translateX: translationX.value }],
-	 }));
-
-	//"Value tool" components - line and text 
-	const AnimatedLine = Animated.createAnimatedComponent(Line);
-	const AnimatedSvgText = Animated.createAnimatedComponent(SvgText);
-
-	//"Range tool"-------------------------------------------------------------------------
-	//Special const which doesn't allow two lines of "Range tool"  
-	// to be closer than 30 pixels from each other
-	const minDistanseBeetwenLines = 30;
-	//Special const whic is used to draw three lines of "Range tool" and display counter value
-	const translationXSecond = useSharedValue(maxXvalue / 2 - 40) ;
-	const translationXThird = useSharedValue(maxXvalue / 2 + 40);
-	const mainXValue = useSharedValue((translationXSecond + translationXThird)/2);
-	const latestSecondX = useSharedValue(translationXSecond.value);
-	const latestThirdX = useSharedValue(translationXThird.value);
-
-	const [highlightRange, setHighlightRange] = useState({ low: null, up: null });
-	
-	//Use effect which is used to rerender BarChart colors
-	useEffect(() => {
-    const calculateAndSetHighlightRange = () => {
-      const rawLow = xScale.invert(translationXSecond.value - 15).toFixed(0) - offset;
-      const rawUp = xScale.invert(translationXThird.value - 15).toFixed(0) - offset;
-
-      const lowValue = Math.min(rawLow, rawUp);
-      const upValue = Math.max(rawLow, rawUp);
-
-      setHighlightRange({ low: lowValue, up: upValue });
-  };
-    calculateAndSetHighlightRange();
-  }, [
-    translationXSecond.value,
-    translationXThird.value,
-    offset,          
-    graph_config.width,
-    graph_config.maxValue,
-  ]);	
-
-	//Special function which counts how many chart are in range
-	const handleCounterArea = () => {
-
-		const low = xScale.invert(translationXSecond.value - 15).toFixed(0) - offset; 
-		const up = xScale.invert(translationXThird.value - 15).toFixed(0) - offset;
-		
-    let count = 0;
-
-    data.value.forEach((el) => {
-      if (el.value >= low && el.value <= up) {
-        count++;
+   useAnimatedReaction(
+    () => ({ isToolActive: tool, start: rangeStartX.value, end: rangeEndX.value }),
+    (currentRange) => {
+      'worklet';
+      if (currentRange.isToolActive) {
+        if (barEndPosition >= currentRange.start && barEndPosition <= currentRange.end) {
+          runOnJS(setBarColor)(RANGE_HIGHLIGHT_COLOR);
+        } else {
+          runOnJS(setBarColor)(originalColor);
+        }
+      } else {
+        runOnJS(setBarColor)(originalColor);
       }
-    });
-    return count;
-  };
+    },
+    [barEndPosition, originalColor, tool]
+  );
 
-	const mainCounterPan = Gesture.Pan()
-		.onStart(() => {
-			runOnJS(setIsPanning)(true);
-			// store initial offsets for both lines
-			prevTranslationX.value = 0;
-			latestSecondX.value = translationXSecond.value;
-			latestThirdX.value = translationXThird.value;
-		})
-		.onUpdate((event) => {
-			runOnJS(setIsPanning)(true);
-			const pointer_x = event.translationX;
-			
-			translationXSecond.value = clamp(
-				0,
-				latestSecondX.value + pointer_x,
-				graph_config.width - minDistanseBeetwenLines,
-			);
+  return (
+    <G>
+      <AnimatedRect x="0" y={yPos} width={barEndPosition} height={BAR_HEIGHT} fill={barColor} />
+      <Circle cx={barEndPosition} cy={yPos + BAR_HEIGHT / 2} r="4" fill={DOT_COLOR} />
+    </G>
+  );
+};
 
-			translationXThird.value = clamp(
-				minDistanseBeetwenLines,
-				latestThirdX.value + pointer_x,
-				graph_config.width
-			);
-		})
-		.onEnd(() => {
-			runOnJS(setIsPanning)(false);
 
-			// update latest positions
-			latestSecondX.value = translationXSecond.value;
-			latestThirdX.value = translationXThird.value;
-		});
-
-		const secondButtonPan = Gesture.Pan()
-			.onStart(() => {
-				runOnJS(setIsPanning)(true);
-				prevTranslationX.value = translationXSecond.value;
-			})
-			.onUpdate((event) => {
-				runOnJS(setIsPanning)(true);
-				const clamped = clamp(
-					0,
-					event.translationX + prevTranslationX.value,
-					translationXThird.value -  minDistanseBeetwenLines,
-				);
+const Minitool_1 = () => {
+	const { width: windowWidth } = useWindowDimensions();
+		const [displayedData, setDisplayedData] = useState(initialBatteryData);
+		const [isSortedBySize, setIsSortedBySize] = useState(false);
+		const [isSortedByColor, setIsSortedByColor] = useState(false);
+		const [toolValue, setToolValue] = useState(80.0);
+		const [rangeCount, setRangeCount] = useState(0);
 	
-				translationXSecond.value = clamped;
-				latestSecondX.value = clamped;
-			})
-			.onEnd(() => {
-				runOnJS(setIsPanning)(false);
-			});
+		// --- NEW ---: State for controlling tool visibility
+		const [valueToolActive, setValueToolActive] = useState(false);
+		const [rangeToolActive, setRangeToolActive] = useState(false);
 	
-		const thirdButtonPan = Gesture.Pan()
-			.onStart(() => {
-				runOnJS(setIsPanning)(true);
-				prevTranslationX.value = translationXThird.value;
-			})
-			.onUpdate((event) => {
-				runOnJS(setIsPanning)(true);
-				const clamped = clamp(
-					translationXSecond.value + minDistanseBeetwenLines,
-					event.translationX + prevTranslationX.value,
-					graph_config.width
-				);
-	
-				translationXThird.value = clamped;
-				latestThirdX.value = clamped;
-			})
-			.onEnd(() => {
-				runOnJS(setIsPanning)(false);
-			});
+		const SVG_WIDTH = windowWidth - PADDING * 2;
+		const chartWidth = SVG_WIDTH - Y_AXIS_WIDTH > 0 ? SVG_WIDTH - Y_AXIS_WIDTH : 1;
+		const chartHeight = displayedData.length * (BAR_HEIGHT + BAR_SPACING);
+		const SVG_HEIGHT = chartHeight + X_AXIS_HEIGHT + TOP_BUFFER;
 		
-		const counterSecondButtonMovement = useAnimatedStyle(() => ({
-			transform: [{translateX: translationXSecond.value - 15}],
-		}));		
-		const counterThirdButtonMovement = useAnimatedStyle(() => ({
-			transform: [{translateX: translationXThird.value - 45}],
-		}));	
-		const counterMainMovement = useAnimatedStyle(() => ({
-			transform: [{translateX: (translationXSecond.value + translationXThird.value) / 2 - 15}],
+		// --- Single Tool Gesture Logic (No changes here) ---
+		const translateX = useSharedValue((80.0 / MAX_LIFESPAN) * chartWidth);
+		const context = useSharedValue({ x: 0 });
+		const panGesture = Gesture.Pan()
+			.onStart(() => { context.value = { x: translateX.value }; })
+			.onUpdate((event) => {
+				console.log("itspan")
+				translateX.value = clamp(event.translationX + context.value.x, 0, chartWidth);
+			});
+	
+		// --- Range Tool Gesture Logic (No changes here) ---
+		const rangeStartX = useSharedValue((102 / MAX_LIFESPAN) * chartWidth);
+		const rangeEndX = useSharedValue((126 / MAX_LIFESPAN) * chartWidth);
+		const rangeContext = useSharedValue({ start: 0, end: 0 });
+	
+		const movePanGesture = Gesture.Pan()
+			.onStart(() => { rangeContext.value = { start: rangeStartX.value, end: rangeEndX.value }; })
+			.onUpdate((event) => {
+				console.log("s")
+				const rangeWidth = rangeContext.value.end - rangeContext.value.start;
+				const newStart = clamp(rangeContext.value.start + event.translationX, 0, chartWidth - rangeWidth);
+				rangeStartX.value = newStart;
+				rangeEndX.value = newStart + rangeWidth;
+			});
+	
+		const leftHandlePanGesture = Gesture.Pan()
+			.onStart(() => { rangeContext.value = { start: rangeStartX.value, end: rangeEndX.value }; })
+			.onUpdate((event) => {
+				rangeStartX.value = clamp(rangeContext.value.start + event.translationX, 0, rangeEndX.value - RANGE_HANDLE_SIZE);
+			});
+	
+		const rightHandlePanGesture = Gesture.Pan()
+			.onStart(() => { rangeContext.value = { start: rangeStartX.value, end: rangeEndX.value }; })
+			.onUpdate((event) => {
+				rangeEndX.value = clamp(rangeContext.value.end + event.translationX, rangeStartX.value + RANGE_HANDLE_SIZE, chartWidth);
+			});
+	
+		// --- Animated Props ---
+		const animatedToolProps = useAnimatedProps(() => ({ x: translateX.value - 7.5 }));
+		const animatedValueLineProps = useAnimatedProps(() => ({ x1: translateX.value, x2: translateX.value }));
+		const animatedRangeRectProps = useAnimatedProps(() => ({
+			x: rangeStartX.value,
+			width: rangeEndX.value - rangeStartX.value,
 		}));
-
-	//View which represent actuall BarChart with all it's modifications
-	const Chart = <View style={{ height: graph_config.height + 110 }}>
-		<BarChart
-			//Data for the chart
-			data={data.value.map(item => {
-    
-          const barEndValue = item.value;
-
-          const isInsideGreenRange =
-            highlightRange.low !== null &&
-            barEndValue >= highlightRange.low &&
-            barEndValue <= highlightRange.up;
-
-          let frontColor;
-          if (isInsideGreenRange) {
-            frontColor = '#bf00ff'; 
-          } else if (item.label === 'Always Ready') {
-            frontColor = '#ffff00'; 
-          } else {
-            frontColor = '#0099ff'; 
-          }
-          return {
-            ...item,
-            frontColor: frontColor,
-          };
-        })}
+		const animatedRangeLeftLineProps = useAnimatedProps(() => ({ x1: rangeStartX.value, x2: rangeStartX.value }));
+		const animatedRangeRightLineProps = useAnimatedProps(() => ({ x1: rangeEndX.value, x2: rangeEndX.value }));
+		const animatedLeftHandleProps = useAnimatedProps(() => ({ x: rangeStartX.value - RANGE_HANDLE_SIZE / 2 }));
+		const animatedRightHandleProps = useAnimatedProps(() => ({ x: rangeEndX.value - RANGE_HANDLE_SIZE / 2 }));
+		const animatedMoveHandleProps = useAnimatedProps(() => ({ 
+			x: rangeStartX.value, 
+			width: Math.abs(rangeStartX.value - rangeEndX.value) 
+		}));
+	
+		 const animatedValueLabelStyle = useAnimatedStyle(() => ({
+			transform: [{ translateX: translateX.value}],
+			opacity: withTiming(rangeToolActive ? 1 : 0),
+		}));
+		// --- MODIFIED ---: Combine position and opacity animation for the labels
+		const animatedLabelStyle = useAnimatedStyle(() => ({
+			transform: [{ translateX: translateX.value }],
+			opacity: withTiming(valueToolActive ? 1 : 0),
+		}));
+	
+		const animatedRangeLabelStyle = useAnimatedStyle(() => ({
+			transform: [{ translateX: (rangeStartX.value + rangeEndX.value) / 2 }],
+			opacity: withTiming(rangeToolActive ? 1 : 0),
+		}));
 		
-
-			//Chart main settings	
-			height={graph_config.height}
-			width={graph_config.width}
-			hideRules
-			horizontal
-			shiftX={graph_config.shiftX} 
-			noOfSections={graph_config.noteOfSections}
-			stepValue={graph_config.stepValue}
-			maxValue={graph_config.stepValue * graph_config.noteOfSections}
-			
-			//Bar settings
-			barWidth={graph_config.barWidth}
-			spacing={graph_config.spacing}
-			barBorderRadius={graph_config.barBorderRadius}
-			barBorderColor={"#666699"}
-			barBorderWidth={0.5}
-			
-			//Axis settings
-			yAxisThickness={1}
-			xAxisThickness={1}
-			xAxisColor={"#666699"}
-			yAxisColor={"#666699"}
-			xAxisLabelsHeight={1}
-			/>
-	</View>;
-
-	//Help to increase the line length if there are two settings on the screen at the same time
-	const default_length = graph_config.height + 155;
-	const [activeLength, setActiveLength] = useState(graph_config.height + 155);
-	const tabs = [
-		<CustomButton
-			title={'Value tool'}
-			hadlePress={() => {
-				if(activeTool === 'none'){
-					setActiveTool('value');
-				}else if(activeTool === 'range'){
-					setActiveLength(default_length + 10);
-					setActiveTool('both');
-				}else if(activeTool === 'both'){
-					setActiveTool('range');
-					setActiveLength(default_length);
-				}else{
-					setActiveTool('none');
+		// --- NEW ---: Create animated props to control the opacity of the tool groups
+		const valueToolContainerAnimatedProps = useAnimatedProps(() => {
+			return { opacity: withTiming(valueToolActive ? 1 : 0) };
+		});
+	
+		const rangeToolContainerAnimatedProps = useAnimatedProps(() => {
+			return { opacity: withTiming(rangeToolActive ? 1 : 0) };
+		});
+	
+		// --- Reactions for JS-side updates (No changes here) ---
+		useAnimatedReaction(
+			() => translateX.value,
+			(currentValue) => runOnJS(setToolValue)((currentValue / chartWidth) * MAX_LIFESPAN),
+			[chartWidth]
+		);
+		
+		useAnimatedReaction(
+			() => ({ start: rangeStartX.value, end: rangeEndX.value }),
+			(currentRange, previousRange) => {
+				if (currentRange.start !== previousRange?.start || currentRange.end !== previousRange?.end) {
+					const minLifespan = (currentRange.start / chartWidth) * MAX_LIFESPAN;
+					const maxLifespan = (currentRange.end / chartWidth) * MAX_LIFESPAN;
+					const count = displayedData.filter(item => item.lifespan >= minLifespan && item.lifespan <= maxLifespan).length;
+					runOnJS(setRangeCount)(count);
 				}
-			}}
-			containerStyles = {`bg-sky-400/75 w-full m-4`}
-			testID={'custom-button-Value-tool'}
-		/>,
-		<CustomButton
-			title={'Range tool'}
-			hadlePress={() => {
-				if(activeTool === 'none'){
-					setActiveTool('range');
-				}else if(activeTool === 'value'){
-					setActiveLength(default_length + 10);
-					setActiveTool('both');
-				}else if(activeTool === 'both'){
-					setActiveTool('value');
-					setActiveLength(default_length);
-					setHighlightRange({low: null, up: null});
-				}else{
-					setActiveTool('none');
-					setHighlightRange({low: null, up: null});
-				}
-			}}
-			containerStyles = "bg-sky-400/75 w-full m-4"
-			testID={'custom-button-Range-tool'}
-		/>
-		]
-	const additionalTabs = [
-			<CustomButton
-			title={'Add data'}
-			hadlePress={() => {
-        setIsFormActive(true);
-      }}
-			containerStyles = "bg-sky-400/75 w-full m-4"
-			testID={'custom-button-Add-data'}
-		/>,
-    <CustomButton
-			title={'Reset data'}
-			hadlePress={() => {
-        data.value = initialData;
-        setOriginalData(initialData);
-      }}
-			containerStyles = "bg-sky-400/75 w-full m-4"
-		/>,
-		]
+			},
+			[chartWidth, displayedData]
+		);
+		
+		// --- Sorting Handlers (No changes here) ---
+		const handleSortBySize = (isActive) => {
+			setIsSortedBySize(isActive);
+			if (isActive) {
+				setIsSortedByColor(false);
+				setDisplayedData([...initialBatteryData].sort((a, b) => a.lifespan - b.lifespan));
+			} else if (!isSortedByColor) {
+				setDisplayedData(initialBatteryData);
+			}
+		};
+	
+		const handleSortByColor = (isActive) => {
+			setIsSortedByColor(isActive);
+			if (isActive) {
+				setIsSortedBySize(false);
+				setDisplayedData([...initialBatteryData].sort((a, b) => a.brand.localeCompare(b.brand)));
+			} else if (!isSortedBySize) {
+				setDisplayedData(initialBatteryData);
+			}
+		};
+		
+		// --- MODIFIED ---: Simplified toggle handlers
+		const handleValueTool = (isActive) => {
+			setValueToolActive(isActive);
+		};
+		const handleRangeTool = (isActive) => {
+			setRangeToolActive(isActive);
+		};
+	
 	return (
 		<GestureHandlerRootView>
-			 {isFormActive ? (<CustomDataForm formHandler={setIsFormActive} />) : null}
-				<ScrollView style={styles.AndroidSafeArea}>
-						{/*Main label*/}
-						<Text style={styles.text}>Life Span of Batteries</Text>
-					 
-						<View style={{
-							height: platform === 'web' ? height * 0.85 : height * 0.9 , 
-							width: width, 
-							margin: 0, 
-							flexDirection: platform === 'web' ? 'row': 'column', 
-							}}
-							>
-							{/*Main container for chart and two functions: separator and counter*/}	
-							<View style ={mainContainer}>
-
-							{Chart}
-							
-							{(activeTool === 'value' || activeTool === 'both') && (<View style ={styles.absoluteFill} >
-									<Svg 
-									width="100%"
-									height="100%"
-									style={{ position: 'absolute'}}
-									>	
-										<AnimatedLine
-											x1={animatedX}
-											y1={50}
-											x2={animatedX}
-											y2={graph_config.height + 120}
-											stroke="#000099"
-											strokeWidth="3"
-										/>
-										<AnimatedSvgText
-											x={animatedX}
-											y={50}
-											fontSize={20}
-											fill={'#000099'}
-											testID={'value_text'}
-										>
-											{xScale.invert(animatedX.value - 15).toFixed(0) - offset}
-										</AnimatedSvgText>
-									</Svg>
-								</View>
-							)}
-							{(activeTool === 'value') && (<View style={styles.gestureView}>
-									<GestureDetector gesture={pan}>
-										<Animated.View style ={[styles.gestureButton, separatorMovement]}/>
-									</GestureDetector>
-								</View>
-							)}
-
-							{(activeTool === 'range' || activeTool === 'both') && (<View style ={styles.absoluteFill} >
-									<Svg 
-										width="100%"
-										height="100%"
-										style={{ position: 'absolute'}}
-										>
-										<AnimatedLine
-											x1={translationXSecond}
-											y1={activeLength}
-											x2={translationXThird}
-											y2={activeLength}
-											stroke="#f53b57"
-											strokeWidth="3"
-										/>
-										<AnimatedLine
-											x1={translationXSecond}
-											y1={30}
-											x2={translationXSecond}
-											y2={activeLength + 1}
-											stroke="#f53b57"
-											strokeWidth="3"
-											/>
-										<AnimatedLine
-											x1={translationXThird}
-											y1={30}
-											x2={translationXThird}
-											y2={activeLength + 1}
-											stroke="#f53b57"
-											strokeWidth="3"
-										/>
-										<SvgText
-											x={translationXSecond.value + 20}
-											y={30}
-											fontSize={20}
-											fill={'#f53b57'}
-											testID={'counter_text'}
-										>
-											{`Count: ${handleCounterArea()}`}
-										</SvgText>
-									</Svg> 
-								</View>
-							)}
-							{(activeTool === 'range') && (<View style={styles.gestureView}>
-									<View style={{flexDirection: 'row', height: 30, margin: 0}}>
-										<GestureDetector gesture={secondButtonPan}>
-											<Animated.View style ={[styles.counterAdditionalButton, counterSecondButtonMovement]}/>
-										</GestureDetector>
-										<GestureDetector gesture={thirdButtonPan}>
-											<Animated.View style ={[styles.counterAdditionalButton, counterThirdButtonMovement]}/>
-										</GestureDetector>
-									</View>
-									<View style={{height: 30}}>
-										<GestureDetector gesture={mainCounterPan}>
-											<Animated.View style={[styles.counterMainButton, counterMainMovement]} />
-										</GestureDetector>	
-									</View>
-								</View>
-							)}
-							
-							{(activeTool === 'both') && (<View style={styles.gestureView}>
-								<View style={{
-									height: 20,
-								}}>
-									<GestureDetector gesture={pan}>
-										<Animated.View style ={[styles.gestureButton, separatorMovement]}/>
-									</GestureDetector>
-								</View>
-								<View style={styles.gestureView}>
-									<View style={{flexDirection: 'row', height: 20, margin: 0}}>
-										<GestureDetector gesture={secondButtonPan}>
-											<Animated.View style ={[styles.counterAdditionalButton, counterSecondButtonMovement]}/>
-										</GestureDetector>
-										<GestureDetector gesture={thirdButtonPan}>
-											<Animated.View style ={[styles.counterAdditionalButton, counterThirdButtonMovement]}/>
-										</GestureDetector>
-									</View>
-									<View style={{height: 20}}>
-										<GestureDetector gesture={mainCounterPan}>
-											<Animated.View style={[styles.counterMainButton, counterMainMovement]} />
-										</GestureDetector>	
-									</View>
-								</View>
-								</View>
-							)}
-
-							</View> 
-
-							<View style={{
-								height: platform === 'web' ? graph_config.height + 190 : 100,
-								display: 'flex', 
-								flexDirection: platform === 'web' ? 'column' : 'row', 
-								alignItems: "center", 
-								justifyContent: "space-evenly", 
-								}}>
-								<View style={styles.radioButton}>		
-									<RadioButton
-										value='normal'
-										status={checked === 'normal' ? 'checked' : 'unchecked' }
-										onPress={resetData}
-										uncheckedColor='#38BDF8BF'
-										color='#ff0066'
-										testID="return-to-normal"
-									/>
-									<Text style={{ fontSize: 18}}>Normal Data</Text>
-								</View>
-								<View style={styles.radioButton}>
-									<RadioButton 
-										value='label'
-										status={checked === 'label' ? 'checked' : 'unchecked' }
-										onPress={sortByLabel}
-										uncheckedColor='#38BDF8BF'
-										color='#ff0066'
-										testID="sort-by-label-radio"
-									/>
-									<Text style={{ fontSize: 18}}>Sort by Label</Text>	
-								</View>
-								<View style={styles.radioButton}>	
-									<RadioButton
-										value='value'
-										status={checked === 'value' ? 'checked' : 'unchecked' }
-										onPress={sortByValue}
-										uncheckedColor='#38BDF8BF'
-										color='#ff0066'
-										testID="sort-by-value-radio"
-									/>
-									<Text style={{ fontSize: 18}}>Sort by Value</Text>
-								</View>
-							</View>
+			<View style={styles.container}>
+						<Text style={styles.title}>Battery Lifespan Comparison</Text>
+						
+						<View style={styles.legendContainer}>
+							<View style={styles.legendItem}><View style={[styles.legendColorBox, { backgroundColor: TOUGH_CELL_COLOR }]} /><Text>Tough Cell</Text></View>
+							<View style={styles.legendItem}><View style={[styles.legendColorBox, { backgroundColor: ALWAYS_READY_COLOR }]} /><Text>Always Ready</Text></View>
 						</View>
-											
-				</ScrollView>
-				<CustomTabBar
-						customTabs={platform === 'web' ? tabs.concat(additionalTabs) : tabs }
-						platform={platform}
-					/>
-		</GestureHandlerRootView>		  		
+						
+						<View style={styles.controlsContainer}>
+							<View style={styles.switchControl}><Text>Sort by Color</Text><Switch value={isSortedByColor} onValueChange={handleSortByColor} /></View>
+							<View style={styles.switchControl}><Text>Sort by Size</Text><Switch value={isSortedBySize} onValueChange={handleSortBySize} /></View>
+						</View>
+			
+						<View style={[styles.chartContainer, { height: SVG_HEIGHT + TOOL_LABEL_OFFSET_Y }]}>
+							
+							{/* --- MODIFIED ---: Always render the label, let animated style control opacity */}
+							<Animated.View style={[styles.toolLabelContainer, { left: Y_AXIS_WIDTH, top: TOP_BUFFER }, animatedLabelStyle]}>
+								<Text style={styles.toolLabelText}>{toolValue.toFixed(1)}</Text>
+							</Animated.View> 
+			
+							{/* --- MODIFIED ---: Always render the label, let animated style control opacity */}
+							<Animated.View style={[styles.rangeLabelContainer, animatedRangeLabelStyle]}>
+								<Text style={styles.rangeLabelText}>count: {rangeCount}</Text>
+							</Animated.View>
+			
+							<Svg width={SVG_WIDTH} height={SVG_HEIGHT} style={{ zIndex: 1 }}>
+								<G x={Y_AXIS_WIDTH} y={TOP_BUFFER}>
+									{/* X-Axis */}
+									<Line x1="0" y1={chartHeight} x2={chartWidth - Y_AXIS_WIDTH} y2={chartHeight} stroke={AXIS_COLOR} strokeWidth="1"/>
+									{Array.from({ length: PLATFORM === 'web' ? WEB_TICKS : MOBILE_TICKS }).map((_, i) => {
+										const val = i * (PLATFORM === 'web' ? WEB_VALUE_STEP : MOBILE_VALUE_STEP);
+										const xPos = (val / MAX_LIFESPAN) * chartWidth;
+										return (<SvgText key={`label-${i}`} x={xPos} y={chartHeight + 15} fill={AXIS_COLOR} fontSize="12" textAnchor="middle">{val}</SvgText>);
+									})}
+									
+									{/* Data Bars */}
+									{displayedData.map((item, index) => (
+										<BatteryBar
+											key={`bar-${index}`} item={item} index={index} chartWidth={chartWidth}
+											rangeStartX={rangeStartX} rangeEndX={rangeEndX} tool={rangeToolActive}
+										/>
+									))}
+									
+									{/* --- MODIFIED ---: Wrap all range tool elements in an Animated.G to control opacity */}
+									<AnimatedG animatedProps={rangeToolContainerAnimatedProps}>
+										<AnimatedRect y="0" height={chartHeight} fill={RANGE_TOOL_COLOR} opacity="0.2" animatedProps={animatedRangeRectProps} />
+										<AnimatedLine y1="0" y2={chartHeight} stroke={RANGE_TOOL_COLOR} strokeWidth="2" animatedProps={animatedRangeLeftLineProps} />
+										<AnimatedLine y1="0" y2={chartHeight} stroke={RANGE_TOOL_COLOR} strokeWidth="2" animatedProps={animatedRangeRightLineProps} />
+										
+										{/* --- MODIFIED ---: Add `enabled` prop to gestures */}
+										<GestureDetector gesture={leftHandlePanGesture} enabled={rangeToolActive}>
+												<AnimatedRect y={chartHeight} width={RANGE_HANDLE_SIZE} height={RANGE_HANDLE_SIZE} fill={RANGE_TOOL_COLOR} animatedProps={animatedLeftHandleProps} />
+										</GestureDetector>
+										<GestureDetector gesture={rightHandlePanGesture} enabled={rangeToolActive}>
+												<AnimatedRect y={chartHeight} width={RANGE_HANDLE_SIZE} height={RANGE_HANDLE_SIZE} fill={RANGE_TOOL_COLOR} animatedProps={animatedRightHandleProps} />
+										</GestureDetector>
+										<GestureDetector gesture={movePanGesture} enabled={rangeToolActive}>
+												<AnimatedRect y="0" height={chartHeight} fill="transparent" animatedProps={animatedMoveHandleProps} />
+										</GestureDetector>
+									</AnimatedG>
+									
+									{/* --- MODIFIED ---: Wrap value tool in an Animated.G to control opacity */}
+									<AnimatedG animatedProps={valueToolContainerAnimatedProps}>
+											<AnimatedLine y1={-5} y2={chartHeight} stroke={TOOL_COLOR} strokeWidth="2" animatedProps={animatedValueLineProps} />
+											<GestureDetector gesture={panGesture} enabled={valueToolActive}>
+												<AnimatedRect y={chartHeight} height="15" width="15" fill={TOOL_COLOR} animatedProps={animatedToolProps} />
+											</GestureDetector>  
+									</AnimatedG>
+								 
+								</G>
+								
+								<Line x1={Y_AXIS_WIDTH} y1={TOP_BUFFER} x2={Y_AXIS_WIDTH} y2={chartHeight + TOP_BUFFER} stroke={AXIS_COLOR} strokeWidth="1"/>
+							</Svg>
+						</View>
+						 <View style={styles.controlsContainer}>
+							<View style={styles.switchControl}><Text>Value tool</Text><Switch value={valueToolActive} onValueChange={handleValueTool} /></View>
+							<View style={styles.switchControl}><Text>Range tool</Text><Switch value={rangeToolActive} onValueChange={handleRangeTool} /></View>
+						</View>
+						<Text style={styles.xAxisTitle}>Life Span (hours)</Text>
+					</View>
+			<StatusBar backgroundColor= "#e5e7eb" style="auto"/>
+		</GestureHandlerRootView>		
 )}
 
 const styles = StyleSheet.create({
-  AndroidSafeArea:{
-		flex: 1,
-		flexDirection: 'column',
-    backgroundColor: '#e5e7eb',
-    paddingTop: platform === 'android' ? StatusBar.currentHeight : 0,
+	container: {
+		backgroundColor: '#e5e7eb', 
+		padding: PADDING, 
+		alignItems: 'center', 
+		margin: 0, 
+		borderWidth: 1, 
+		borderColor: '#eee', 
+		borderRadius: 8
 	},
-	text: {
-		margin: height * 0.02,
-    fontSize: 30, 
+	title: { 
+		fontSize: 20, 
 		fontWeight: 'bold', 
-		textAlign: 'center', 
-		color: "#38BDF8BF",
+		marginBottom: 10 
 	},
-	
-	//Sort buttons style
-	buttonContainer:{
-		height: 60,
-		display: "flex", 
-		flexDirection: "column", 
-		alignItems: "center", 
-		justifyContent: "space-evenly",
+	legendContainer: { 
+		flexDirection: 'row', 
+		justifyContent: 'center', 
+		marginBottom: 15, 
+		flexWrap: 'wrap' 
 	},
-	radioButton:{
-		display: "flex", 
-		flexDirection: "column", 
-		alignItems: "center"
+	legendItem: { 
+		flexDirection: 'row', 
+		alignItems: 'center', 
+		marginHorizontal: 15 
 	},
-	//-------------------
-	//Separator movement
-	gestureView:{
-			height: 30,
+	legendColorBox: { 
+		width: 15, 
+		height: 15, 
+		marginRight: 8 
 	},
-	gestureButton:{
-		width: 30, 
-		height: 30, 
-		backgroundColor: '#0080ff',
-		borderColor: '#000099',
-		borderWidth: 2, 
-		borderRadius: 20,
+	controlsContainer: { 
+		flexDirection: 'row', 
+		justifyContent: 'space-around', 
+		width: '100%', 
+		marginBottom: 10, 
+		paddingVertical: 10, 
+		borderTopWidth: 1, 
+		borderBottomWidth: 1, 
+		borderColor: '#f0f0f0' 
 	},
-	//--------------------
-	//Counter gesture
-	counterMainButton: {
-    width: 30,
-    height: 30,
-    backgroundColor: "#ffa801",
-		borderColor: "#f53b57",
-    borderRadius: 20,
-		borderWidth: 2, 
-  },
-	counterAdditionalButton: {
-    width: 30,
-    height: 30,
-    backgroundColor: "#0fbcf9",
-    borderColor: "#575fcf",
-    borderRadius: 20,
-		borderWidth: 2, 
-  },
-	valueButton: {
-		//position: "absolute",
-    height: 100,
-		width: 100,
+	switchControl: { 
+		alignItems: 'center' 
 	},
-  absoluteFill: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-  },
-	//-------
+	chartContainer: { 
+		width: '100%', 
+		marginTop: 20, 
+		position: 'relative' 
+	},
+	xAxisTitle: { 
+		fontSize: 12, 
+		color: AXIS_COLOR, 
+		marginTop: 10 
+	},
+	toolLabelContainer: { 
+		position: 'absolute', 
+		height: TOOL_LABEL_OFFSET_Y, 
+		alignItems: 'center', 
+		zIndex: 15 
+	},
+	toolLabelText: { 
+		color: TOOL_COLOR, 
+		fontWeight: 'bold', 
+		fontSize: 14, 
+		backgroundColor: 'white', 
+		paddingHorizontal: 2 
+	},
+	rangeLabelContainer: { 
+		position: 'absolute', 
+		top: 0, 
+		height: RANGE_LABEL_OFFSET_Y, 
+		alignItems: 'center', 
+		zIndex: 10 
+	},
+	rangeLabelText: { 
+		color: RANGE_TOOL_COLOR, 
+		fontWeight: 'bold', 
+		fontSize: 14, 
+		backgroundColor: 'white', 
+		paddingHorizontal: 4 
+	},
 });
+
+// const styles = StyleSheet.create({
+//   AndroidSafeArea:{
+// 		flex: 1,
+// 		flexDirection: 'column',
+//     backgroundColor: '#000',
+//     paddingTop: platform === 'android' ? StatusBar.currentHeight : 0,
+// 	},
+// 	text: {
+// 		margin: height * 0.02,
+//     fontSize: 30, 
+// 		fontWeight: 'bold', 
+// 		textAlign: 'center', 
+// 		color: "#38BDF8BF",
+// 	},
+	
+// 	//Sort buttons style
+// 	buttonContainer:{
+// 		height: 60,
+// 		display: "flex", 
+// 		flexDirection: "column", 
+// 		alignItems: "center", 
+// 		justifyContent: "space-evenly",
+// 	},
+// 	radioButton:{
+// 		display: "flex", 
+// 		flexDirection: "column", 
+// 		alignItems: "center"
+// 	},
+// 	//-------------------
+// 	//Separator movement
+// 	gestureView:{
+// 			height: 30,
+// 	},
+// 	gestureButton:{
+// 		width: 30, 
+// 		height: 30, 
+// 		backgroundColor: '#0080ff',
+// 		borderColor: '#000099',
+// 		borderWidth: 2, 
+// 		borderRadius: 20,
+// 	},
+// 	//--------------------
+// 	//Counter gesture
+// 	counterMainButton: {
+//     width: 30,
+//     height: 30,
+//     backgroundColor: "#ffa801",
+// 		borderColor: "#f53b57",
+//     borderRadius: 20,
+// 		borderWidth: 2, 
+//   },
+// 	counterAdditionalButton: {
+//     width: 30,
+//     height: 30,
+//     backgroundColor: "#0fbcf9",
+//     borderColor: "#575fcf",
+//     borderRadius: 20,
+// 		borderWidth: 2, 
+//   },
+// 	valueButton: {
+// 		//position: "absolute",
+//     height: 100,
+// 		width: 100,
+// 	},
+//   absoluteFill: {
+//     position: "absolute",
+//     top: 0,
+//     right: 0,
+//     bottom: 0,
+//     left: 0,
+//   },
+// 	//-------
+// });
 
 export default Minitool_1;

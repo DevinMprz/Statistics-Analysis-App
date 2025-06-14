@@ -104,7 +104,6 @@ const Minitool_1 = () => {
 		const panGesture = Gesture.Pan()
 			.onStart(() => { context.value = { x: translateX.value }; })
 			.onUpdate((event) => {
-				console.log("itspan")
 				translateX.value = clamp(event.translationX + context.value.x, 0, chartWidth);
 			});
 	
@@ -116,7 +115,6 @@ const Minitool_1 = () => {
 		const movePanGesture = Gesture.Pan()
 			.onStart(() => { rangeContext.value = { start: rangeStartX.value, end: rangeEndX.value }; })
 			.onUpdate((event) => {
-				console.log("s")
 				const rangeWidth = rangeContext.value.end - rangeContext.value.start;
 				const newStart = clamp(rangeContext.value.start + event.translationX, 0, chartWidth - rangeWidth);
 				rangeStartX.value = newStart;

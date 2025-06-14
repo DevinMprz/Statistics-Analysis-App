@@ -1,0 +1,72 @@
+	const mainContainer = {
+		height: graph_config.height + 120,
+		width	: graph_config.width,
+		flex: 'auto',
+	};
+	const svgGraphContainer = {
+		backgroundColor: 'green',
+	}
+  const x_margin = 15;
+	const y_margin = 50;
+	const padding_from_screen_border = 20;
+
+	const render_x_axis = () => {
+		return(
+			<G key='x_axis'>
+				<Circle
+					cx={x_margin}
+					cy={mainContainer.height - y_margin}
+					r={5}
+					fill={graph_config.axisCircleFillColor}
+					stroke ={graph_config.axisStrokeColor}
+					strokeWidth={graph_config.axisStrokeWidth}			
+				/>
+				<Circle
+					cx={mainContainer.width - x_margin}
+					cy={mainContainer.height - y_margin}
+					r={5}
+					fill={graph_config.axisCircleFillColor}
+					stroke ={graph_config.axisStrokeColor}
+					strokeWidth={graph_config.axisStrokeWidth}			
+				/>
+				<Line
+					x1={x_margin}
+					y1={mainContainer.height - y_margin}
+					x2={mainContainer.width - x_margin}
+					y2={mainContainer.height - y_margin}
+					stroke={graph_config.axisStrokeColor}
+					strokeWidth={graph_config.axisStrokeWidth}
+				/>
+			</G>
+		)
+	}
+	const render_y_axis = () => {
+		return(
+			<G key='y_axis'>
+				<Circle
+					cx={x_margin}
+					cy={mainContainer.height - y_margin}
+					r={graph_config.axisCircleRadius}
+					fill={graph_config.axisCircleFillColor}
+					stroke ={graph_config.axisStrokeColor}
+					strokeWidth={graph_config.axisStrokeWidth}			
+				/>
+				<Circle
+					cx={x_margin}
+					cy={y_margin}
+					r={graph_config.axisCircleRadius}
+					fill={graph_config.axisCircleFillColor}
+					stroke ={graph_config.axisStrokeColor}
+					strokeWidth={graph_config.axisStrokeWidth}			
+				/>
+				<Line
+					x1={x_margin}
+					y1={mainContainer.height - y_margin}
+					x2={x_margin}
+					y2={y_margin}
+					stroke={graph_config.axisStrokeColor}
+					strokeWidth={graph_config.axisStrokeWidth}
+				/>
+			</G>
+		)
+	}

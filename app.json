@@ -28,7 +28,7 @@
       "output": "server"
     },
     "experiments": {
-      "baseUrl": "/expo-gh-pages"
+      "baseUrl": "/Statistics-Analysis-App"
     },
     "plugins": ["expo-router"]
   }

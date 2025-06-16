@@ -31,7 +31,7 @@ export default function App() {
           />
           <CustomButton
             title="Minitool2"
-            hadlePress={() => router.push("/minitool_2")}
+            hadlePress={() => router.push("/minitool_2_index")}
             containerStyles="bg-sky-400/75 w-full mt-7"
           />
           <CustomButton

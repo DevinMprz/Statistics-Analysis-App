@@ -6,7 +6,7 @@ import CustomButton from "../../components/customButton"; // Assuming CustomButt
 
 // Define Tailwind CSS class strings for the button
 // Adjusted for vertical layout: width 80%, vertical margin my-2 (approx 8px top and bottom)
-const buttonTailwind = "w-[80%] my-2 py-[15px] px-[10px] rounded-[10px]";
+const buttonTailwind = "w-[80%] bg-sky-400/75 my-2 py-[15px] px-[10px] rounded-[10px]";
 const buttonTextTailwind = "text-white text-base font-bold"; // Added font-bold for consistency if needed
 
 export default function MinitoolTwoMenu() {
@@ -22,13 +22,13 @@ export default function MinitoolTwoMenu() {
           {/* Changed from styles.buttonsRow to styles.buttonsContainer for clarity */}
           <View style={styles.buttonsContainer}>
             <CustomButton
-              handlePress={() => router.push("cholesterol")}
+              hadlePress={() => router.push("cholesterol")}
               title="Cholesterol Level Scenario"
               containerStyles={buttonTailwind} // Use updated Tailwind string
               textStyles={buttonTextTailwind}
             />
             <CustomButton
-              handlePress={() => router.push("speedtrap")}
+              hadlePress={() => router.push("speedtrap")}
               title="Speed Trap Scenario"
               containerStyles={buttonTailwind} // Use updated Tailwind string
               textStyles={buttonTextTailwind}

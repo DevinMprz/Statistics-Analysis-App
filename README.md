@@ -26,9 +26,19 @@
 
 ## Build & Run
 
-The actual version of the app is available by the link below:
+Clone the repository and install dependencies:
 
-https://devinmprz.github.io/Statistics-Analysis-App/ 
+```bash
+# Clone repository
+git clone https://github.com/DevinMprz/Statistics-Analysis-App.git
+cd Statistics-Analysis-App
+
+# Install dependencies
+npm install
+
+#Buld the project
+npm run start
+```
 
 ## Usage
 

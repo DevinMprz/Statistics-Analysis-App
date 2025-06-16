@@ -11,6 +11,7 @@
     "format": "eslint --fix ."
   },
   "dependencies": {
+    "@react-native-community/blur": "^4.4.1",
     "expo": "^53.0.0",
     "expo-constants": "~17.1.6",
     "expo-linking": "~7.1.5",
@@ -19,10 +20,13 @@
     "nativewind": "^4.1.23",
     "npm": "^11.0.0",
     "react": "19.0.0",
+    "react-dom": "19.0.0",
     "react-native": "0.79.3",
+    "react-native-gesture-handler": "^2.26.0",
     "react-native-reanimated": "~3.17.4",
     "react-native-safe-area-context": "5.4.0",
     "react-native-screens": "~4.11.1",
+    "react-native-svg": "^15.12.0",
     "react-native-web": "^0.20.0",
     "tailwindcss": "^3.4.16"
   },

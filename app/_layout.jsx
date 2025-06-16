@@ -11,6 +11,7 @@ const RootLayout = () => {
   return (
     <Stack>
       <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="(Minitool_one)" options={{ headerShown: false }} />
     </Stack>
   );
 };

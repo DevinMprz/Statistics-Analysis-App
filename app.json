@@ -24,9 +24,11 @@
     },
     "web": {
       "favicon": "",
-      "assetPrefix": ".",
       "bundler": "metro",
-      "output": "static"
+      "output": "server"
+    },
+    "experiments": {
+      "baseUrl": "/expo-gh-pages"
     },
     "plugins": ["expo-router"]
   }

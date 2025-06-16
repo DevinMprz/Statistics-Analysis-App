@@ -40,7 +40,7 @@ const AnimatedLine = Animated.createAnimatedComponent(Line);
 const MIN_BATTERY_COUNT_VALUE = 1;
 const MAX_BATTERY_COUNT_VALUE = 10;
 const MAX_BAR_COUNT = 20;
-const MAX_LIFESPAN = 140;
+const MAX_LIFESPAN = 130;
 const MIN_LIFESPAN = 1;
 const TOUGH_CELL_COLOR = "#33cc33";
 const ALWAYS_READY_COLOR = "#cc00ff";
@@ -86,6 +86,7 @@ const Minitool_1 = () => {
   const [isAddBarModalVisible, setIsAddBarModalVisible] = useState(false);
   const [newBarLifespan, setNewBarLifespan] = useState("100");
   const [newBarBrand, setNewBarBrand] = useState("Tough Cell");
+  const [isHelpVisible, setIsHelpVisible] = useState(false);
 
   const chartHeight = 20 * (BAR_HEIGHT + BAR_SPACING);
   const SVG_HEIGHT = chartHeight + X_AXIS_HEIGHT + TOP_BUFFER;
@@ -299,7 +300,7 @@ const Minitool_1 = () => {
       } else {
         Alert.alert(
           "Invalid Input",
-          "Please check your values. Min must be less than Max, and all counts must be positive numbers."
+          `Please check your values. Min Lifespan must be less than Max Lifespan, Max Lifespan must be less than ${MAX_LIFESPAN}`
         );
       }
       return;
@@ -452,6 +453,67 @@ const Minitool_1 = () => {
           </View>
         </View>
 
+        {/* --- Collapsible Help Section --- */}
+        <View style={styles.collapsibleContainer}>
+          <TouchableOpacity
+            onPress={() => setIsHelpVisible(!isHelpVisible)}
+            style={styles.collapsibleHeader}
+          >
+            <Text style={styles.collapsibleHeaderText}>
+              {isHelpVisible ? "▼" : "►"} About This Battery Chart
+            </Text>
+          </TouchableOpacity>
+          {isHelpVisible && (
+            <View style={styles.collapsibleContent}>
+              <Text style={[styles.helpSectionTitle, { marginTop: 0 }]}>
+                What is this?
+              </Text>
+              <Text style={styles.helpText}>
+                This chart displays the lifespans, in hours, for batteries from
+                two different brands: Tough Cell{" "}
+                <Text style={{ color: "#33cc33", fontSize: 15 }}>■</Text> and
+                Always Ready{" "}
+                <Text style={{ color: "#cc00ff", fontSize: 15 }}>■</Text>.
+              </Text>
+
+              <Text style={styles.helpSectionTitle}>Why is it useful?</Text>
+              <Text style={styles.helpText}>
+                Comparing the two sets of data helps to visually determine if
+                one brand generally offers a longer lifespan than the other. You
+                can see how the lifespans are distributed and identify outliers.
+              </Text>
+
+              <Text style={styles.helpSectionTitle}>What can you do?</Text>
+              <View style={styles.helpList}>
+                <Text style={styles.helpListItem}>
+                  - Toggle the switches to{" "}
+                  <Text style={styles.helpTextBold}>Sort</Text> the batteries by
+                  lifespan (size) or by brand (color).
+                </Text>
+                <Text style={styles.helpListItem}>
+                  - Enable the{" "}
+                  <Text style={styles.helpTextBold}>'Value tool'</Text> and drag
+                  the red line to see the exact lifespan value at any point.
+                </Text>
+                <Text style={styles.helpListItem}>
+                  - Enable the{" "}
+                  <Text style={styles.helpTextBold}>'Range tool'</Text> to
+                  select a specific lifespan range. Drag the handles to resize
+                  the range or drag the middle to move it. The count of
+                  batteries within the range appears at the top.
+                </Text>
+                <Text style={styles.helpListItem}>
+                  - Use the buttons at the bottom to{" "}
+                  <Text style={styles.helpTextBold}>Add</Text> a new battery,{" "}
+                  <Text style={styles.helpTextBold}>Remove</Text> the last one,
+                  or <Text style={styles.helpTextBold}>Generate</Text> a whole
+                  new set of random data.
+                </Text>
+              </View>
+            </View>
+          )}
+        </View>
+
         {/* --- Sorting controllers --- */}
         <View style={styles.controlsContainer}>
           <View style={styles.switchControl}>
@@ -486,7 +548,11 @@ const Minitool_1 = () => {
             </Animated.View>
 
             {/* --- Whole bar chart */}
-            <Svg width={SVG_WIDTH} height={SVG_HEIGHT} style={{ zIndex: 1 }}>
+            <Svg
+              width={SVG_WIDTH - Y_AXIS_WIDTH}
+              height={SVG_HEIGHT}
+              style={{ zIndex: 1 }}
+            >
               <G x={Y_AXIS_WIDTH} y={TOP_BUFFER}>
                 {/* X-Axis */}
                 <Line
@@ -658,13 +724,14 @@ const Minitool_1 = () => {
             <Button
               title="Reset to Initial"
               onPress={handleResetData}
-              color="#841584"
+              color="#ff8533"
             />
           </View>
           <View style={styles.buttonWrapper}>
             <Button
               title="Generate New Data"
               onPress={handleGenerateDataButton}
+              color="#47d147"
             />
           </View>
         </View>
@@ -795,7 +862,7 @@ const Minitool_1 = () => {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1,
     backgroundColor: "#e5e7eb",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
     alignItems: "center",
@@ -821,6 +888,58 @@ const styles = StyleSheet.create({
     width: 15,
     height: 15,
     marginRight: 8,
+  },
+  collapsibleContainer: {
+    width: "95%",
+    marginBottom: 15,
+    backgroundColor: "#f7f7f7",
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    overflow: "hidden",
+  },
+  collapsibleHeader: {
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#e5e7eb",
+  },
+  collapsibleHeaderText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#1e3a8a",
+    marginLeft: 5,
+  },
+  collapsibleContent: {
+    flex: 1,
+    padding: 15,
+    backgroundColor: "#f9f9f9",
+  },
+  helpSectionTitle: {
+    fontSize: 15,
+    fontWeight: "bold",
+    marginBottom: 5,
+    marginTop: 10,
+    color: "#111827",
+  },
+  helpText: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: "#374151",
+  },
+  helpList: {
+    marginTop: 5,
+  },
+  helpListItem: {
+    fontSize: 14,
+    lineHeight: 21,
+    marginBottom: 8,
+    color: "#374151",
+  },
+  helpTextBold: {
+    fontWeight: "bold",
+    color: "#1f2937",
   },
   controlsContainer: {
     flexDirection: "row",
@@ -883,8 +1002,11 @@ const styles = StyleSheet.create({
     marginTop: 10,
     flexWrap: "wrap",
     gap: 10,
+    paddingBottom: 30,
   },
   buttonWrapper: {
+    flex: 1,
+    minWidth: 100,
     margin: 5,
   },
   modalCenteredView: {

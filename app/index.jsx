@@ -6,51 +6,97 @@ import { logo } from "../constants/icons";
 import { Redirect, router } from "expo-router";
 import CustomButton from "../components/customButton";
 
+const menuButtonStyles = "bg-sky-400/75 w-full hover:opacity-95";
+
 export default function App() {
   return (
-    <SafeAreaView className="bg-primary h-full">
-      <ScrollView contentContainerStyle={{ height: "100%" }}>
-        <View className="w-full justify-center items-center min-h-[85vh] px-4">
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView contentContainerStyle={styles.scrollViewContent}>
+        <View style={styles.logoContainer}>
           <Image
             source={logo}
             style={styles.imageContainer}
             resizeMode="contain"
           />
+        </View>
 
-          <View className="relative mt-5">
-            <Text className="text-3xl text-black font-bold text-center">
-              Try your hand at working with{" "}
-              <Text className="text-sky-400/75">Dates</Text>
-            </Text>
-          </View>
+        <View style={styles.titleContainer}>
+          <Text style={styles.titleText}>
+            Explore our <Text style={styles.highlightText}>Minitools</Text> and
+            learn in a <Text style={styles.highlightText}>Fun</Text> way!
+          </Text>
+        </View>
 
+        <View style={styles.buttonGroup}>
           <CustomButton
-            title="Minitool1"
+            title="Minitool 1"
             hadlePress={() => router.push("/minitool_1")}
-            containerStyles="bg-sky-400/75 w-full mt-7"
+            containerStyles={menuButtonStyles}
           />
           <CustomButton
-            title="Minitool2"
+            title="Minitool 2"
             hadlePress={() => router.push("/minitool_2_index")}
-            containerStyles="bg-sky-400/75 w-full mt-7"
+            containerStyles={menuButtonStyles}
           />
           <CustomButton
-            title="Minitool3"
+            title="Minitool 3"
             hadlePress={() => router.push("minitool_3")}
-            containerStyles="bg-sky-400/75 w-full mt-7"
+            containerStyles={menuButtonStyles}
           />
         </View>
       </ScrollView>
-
       <StatusBar backgroundColor="#F8FBFC" style="black" />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  imageContainer: {
-    height: 400,
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#f0f0f0",
+  },
+  scrollViewContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 32,
+    paddingHorizontal: 16,
+    minHeight: "100%",
+  },
+  logoContainer: {
     width: "100%",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  imageContainer: {
+    height: 180,
+    width: "80%",
+    maxWidth: 320,
     alignSelf: "center",
+  },
+  titleContainer: {
+    marginTop: 10,
+    marginBottom: 24,
+    width: "100%",
+    alignItems: "center",
+  },
+  titleText: {
+    fontSize: 26,
+    fontWeight: "bold",
+    color: "#222",
+    textAlign: "center",
+  },
+  highlightText: {
+    color: "#38bdf8",
+    opacity: 0.75,
+    fontWeight: "bold",
+  },
+  buttonGroup: {
+    width: "100%",
+    maxWidth: 500, // Constrain the max width of the button container
+    gap: 16,
+    marginTop: 10,
+    marginBottom: 10,
+    alignItems: "center",
   },
 });

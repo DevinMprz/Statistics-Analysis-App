@@ -3,7 +3,7 @@
   "license": "0BSD",
   "version": "1.0.0",
   "main": "expo-router/entry",
-  "homepage": "https://devinmprz.github.io/Statistics-Analysis-App/dist/index.html",
+  "homepage": "https://devinmprz.github.io/Statistics-Analysis-App",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",

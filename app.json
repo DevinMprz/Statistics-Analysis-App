@@ -25,7 +25,7 @@
     "web": {
       "favicon": "",
       "bundler": "metro",
-      "output": "server"
+      "output": "static"
     },
     "experiments": {
       "baseUrl": "/Statistics-Analysis-App"

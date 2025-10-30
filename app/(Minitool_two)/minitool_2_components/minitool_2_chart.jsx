@@ -8,7 +8,7 @@ import React, {
 import { View, Text, StyleSheet, Button, Switch } from "react-native"; // Added TouchableOpacity
 import Svg, { G, Circle, Line, Text as SvgText, Rect } from "react-native-svg";
 import { scaleLinear } from "d3-scale";
-import Animated from "react-native-reanimated";
+import Animated, { runOnJS } from "react-native-reanimated";
 import {
   Gesture,
   GestureDetector,
@@ -277,9 +277,8 @@ function CholesterolLevelChart(settings) {
       .onEnd((event) => {
         const tapXInG = event.x - margins.left;
         const clampedTapX = Math.max(0, Math.min(tapXInG, innerWidth));
-        handleAddLineGlobal(clampedTapX);
-      })
-      .runOnJS(true); // <--- ADD THIS
+        runOnJS(handleAddLineGlobal)(clampedTapX);
+      });
 
     // Memoize boxPlotSeparators for non-static-box guides
     const boxPlotSeparators = useMemo(() => {
@@ -561,21 +560,20 @@ function CholesterolLevelChart(settings) {
                   .activeOffsetX([0, 0])
                   .onBegin(() => {
                     // This gesture is only attached if it's a manual line and boxCreationMode is on
-                    setDraggingLineId(line.id);
+                    runOnJS(setDraggingLineId)(line.id);
                     dragInitialXRef.current = line.x;
                   })
                   .onUpdate((event) => {
                     let newDragX = dragInitialXRef.current + event.translationX;
                     newDragX = Math.max(0, Math.min(newDragX, innerWidth));
-                    handleDragLineUpdateGlobal(line.id, newDragX);
+                    runOnJS(handleDragLineUpdateGlobal)(line.id, newDragX);
                   })
                   .onEnd(() => {
-                    setDraggingLineId(null);
-                    setThresholdLines((prevLines) =>
+                    runOnJS(setDraggingLineId)(null);
+                    runOnJS(setThresholdLines)((prevLines) =>
                       [...prevLines].sort((a, b) => a.x - b.x)
                     );
-                  })
-                  .runOnJS(true);
+                  });
 
                 const handleSize = 12;
                 const handleY = baseline + 17; // Y-coordinate for the top of the drag handle

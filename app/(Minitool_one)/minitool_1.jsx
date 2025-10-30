@@ -652,6 +652,28 @@ const Minitool_1 = () => {
                           document.addEventListener('mousemove', handleMouseMove);
                           document.addEventListener('mouseup', handleMouseUp);
                         }}
+                        onTouchStart={(e) => {
+                          e.stopPropagation();
+                          const startX = e.nativeEvent.touches[0].pageX;
+                          const initialStart = rangeStartX.value;
+                          
+                          const handleTouchMove = (moveEvent) => {
+                            const deltaX = moveEvent.touches[0].pageX - startX;
+                            rangeStartX.value = clamp(
+                              initialStart + deltaX,
+                              0,
+                              rangeEndX.value - RANGE_HANDLE_SIZE
+                            );
+                          };
+                          
+                          const handleTouchEnd = () => {
+                            document.removeEventListener('touchmove', handleTouchMove);
+                            document.removeEventListener('touchend', handleTouchEnd);
+                          };
+                          
+                          document.addEventListener('touchmove', handleTouchMove);
+                          document.addEventListener('touchend', handleTouchEnd);
+                        }}
                       />
                       <AnimatedRect
                         y={chartHeight}
@@ -680,6 +702,28 @@ const Minitool_1 = () => {
                           
                           document.addEventListener('mousemove', handleMouseMove);
                           document.addEventListener('mouseup', handleMouseUp);
+                        }}
+                        onTouchStart={(e) => {
+                          e.stopPropagation();
+                          const startX = e.nativeEvent.touches[0].pageX;
+                          const initialEnd = rangeEndX.value;
+                          
+                          const handleTouchMove = (moveEvent) => {
+                            const deltaX = moveEvent.touches[0].pageX - startX;
+                            rangeEndX.value = clamp(
+                              initialEnd + deltaX,
+                              rangeStartX.value + RANGE_HANDLE_SIZE,
+                              chartWidth
+                            );
+                          };
+                          
+                          const handleTouchEnd = () => {
+                            document.removeEventListener('touchmove', handleTouchMove);
+                            document.removeEventListener('touchend', handleTouchEnd);
+                          };
+                          
+                          document.addEventListener('touchmove', handleTouchMove);
+                          document.addEventListener('touchend', handleTouchEnd);
                         }}
                       />
                       <AnimatedRect
@@ -712,6 +756,32 @@ const Minitool_1 = () => {
                           
                           document.addEventListener('mousemove', handleMouseMove);
                           document.addEventListener('mouseup', handleMouseUp);
+                        }}
+                        onTouchStart={(e) => {
+                          e.stopPropagation();
+                          const startX = e.nativeEvent.touches[0].pageX;
+                          const initialStart = rangeStartX.value;
+                          const initialEnd = rangeEndX.value;
+                          const rangeWidth = initialEnd - initialStart;
+                          
+                          const handleTouchMove = (moveEvent) => {
+                            const deltaX = moveEvent.touches[0].pageX - startX;
+                            const newStart = clamp(
+                              initialStart + deltaX,
+                              0,
+                              chartWidth - rangeWidth
+                            );
+                            rangeStartX.value = newStart;
+                            rangeEndX.value = newStart + rangeWidth;
+                          };
+                          
+                          const handleTouchEnd = () => {
+                            document.removeEventListener('touchmove', handleTouchMove);
+                            document.removeEventListener('touchend', handleTouchEnd);
+                          };
+                          
+                          document.addEventListener('touchmove', handleTouchMove);
+                          document.addEventListener('touchend', handleTouchEnd);
                         }}
                       />
                     </>
@@ -793,6 +863,28 @@ const Minitool_1 = () => {
                         
                         document.addEventListener('mousemove', handleMouseMove);
                         document.addEventListener('mouseup', handleMouseUp);
+                      }}
+                      onTouchStart={(e) => {
+                        e.stopPropagation();
+                        const startX = e.nativeEvent.touches[0].pageX;
+                        const initialTranslate = translateX.value;
+                        
+                        const handleTouchMove = (moveEvent) => {
+                          const deltaX = moveEvent.touches[0].pageX - startX;
+                          translateX.value = clamp(
+                            initialTranslate + deltaX,
+                            0,
+                            chartWidth
+                          );
+                        };
+                        
+                        const handleTouchEnd = () => {
+                          document.removeEventListener('touchmove', handleTouchMove);
+                          document.removeEventListener('touchend', handleTouchEnd);
+                        };
+                        
+                        document.addEventListener('touchmove', handleTouchMove);
+                        document.addEventListener('touchend', handleTouchEnd);
                       }}
                     />
                   ) : (

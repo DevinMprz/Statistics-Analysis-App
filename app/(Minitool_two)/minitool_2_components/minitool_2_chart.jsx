@@ -619,8 +619,8 @@ function CholesterolLevelChart(settings) {
                           rx={2}
                           ry={2}
                           onMouseDown={(e) => {
-                            e.stopPropagation(); // Prevent creating a new line when clicking the handle
-                            isDraggingRef.current = true; // Mark that we're starting a drag
+                            e.stopPropagation();
+                            isDraggingRef.current = true;
                             setDraggingLineId(line.id);
                             dragInitialXRef.current = line.x;
                             const startX = e.nativeEvent.pageX;
@@ -640,7 +640,6 @@ function CholesterolLevelChart(settings) {
                               document.removeEventListener('mousemove', handleMouseMove);
                               document.removeEventListener('mouseup', handleMouseUp);
                               
-                              // Reset the dragging flag after a short delay to prevent click from triggering
                               setTimeout(() => {
                                 isDraggingRef.current = false;
                               }, 50);
@@ -648,6 +647,36 @@ function CholesterolLevelChart(settings) {
                             
                             document.addEventListener('mousemove', handleMouseMove);
                             document.addEventListener('mouseup', handleMouseUp);
+                          }}
+                          onTouchStart={(e) => {
+                            e.stopPropagation();
+                            isDraggingRef.current = true;
+                            setDraggingLineId(line.id);
+                            dragInitialXRef.current = line.x;
+                            const startX = e.nativeEvent.touches[0].pageX;
+                            
+                            const handleTouchMove = (moveEvent) => {
+                              const deltaX = moveEvent.touches[0].pageX - startX;
+                              let newDragX = dragInitialXRef.current + deltaX;
+                              newDragX = Math.max(0, Math.min(newDragX, innerWidth));
+                              handleDragLineUpdateGlobal(line.id, newDragX);
+                            };
+                            
+                            const handleTouchEnd = () => {
+                              setDraggingLineId(null);
+                              setThresholdLines((prevLines) =>
+                                [...prevLines].sort((a, b) => a.x - b.x)
+                              );
+                              document.removeEventListener('touchmove', handleTouchMove);
+                              document.removeEventListener('touchend', handleTouchEnd);
+                              
+                              setTimeout(() => {
+                                isDraggingRef.current = false;
+                              }, 50);
+                            };
+                            
+                            document.addEventListener('touchmove', handleTouchMove);
+                            document.addEventListener('touchend', handleTouchEnd);
                           }}
                           style={{ cursor: 'grab' }}
                         />

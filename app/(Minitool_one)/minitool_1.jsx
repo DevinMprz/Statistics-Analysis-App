@@ -621,42 +621,139 @@ const Minitool_1 = () => {
                     animatedProps={animatedRangeRightLineProps}
                   />
 
-                  {/* --- Reactangles - gesture handlers --- */}
-                  <GestureDetector
-                    gesture={leftHandlePanGesture}
-                    enabled={rangeToolActive}
-                  >
-                    <AnimatedRect
-                      y={chartHeight}
-                      width={RANGE_HANDLE_SIZE}
-                      height={RANGE_HANDLE_SIZE}
-                      fill={RANGE_TOOL_COLOR}
-                      animatedProps={animatedLeftHandleProps}
-                    />
-                  </GestureDetector>
-                  <GestureDetector
-                    gesture={rightHandlePanGesture}
-                    enabled={rangeToolActive}
-                  >
-                    <AnimatedRect
-                      y={chartHeight}
-                      width={RANGE_HANDLE_SIZE}
-                      height={RANGE_HANDLE_SIZE}
-                      fill={RANGE_TOOL_COLOR}
-                      animatedProps={animatedRightHandleProps}
-                    />
-                  </GestureDetector>
-                  <GestureDetector
-                    gesture={movePanGesture}
-                    enabled={rangeToolActive}
-                  >
-                    <AnimatedRect
-                      y="0"
-                      height={chartHeight}
-                      fill="transparent"
-                      animatedProps={animatedMoveHandleProps}
-                    />
-                  </GestureDetector>
+                  {/* --- Rectangles - gesture handlers --- */}
+                  {Platform.OS === 'web' && rangeToolActive ? (
+                    <>
+                      <AnimatedRect
+                        y={chartHeight}
+                        width={RANGE_HANDLE_SIZE}
+                        height={RANGE_HANDLE_SIZE}
+                        fill={RANGE_TOOL_COLOR}
+                        animatedProps={animatedLeftHandleProps}
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          const startX = e.nativeEvent.pageX;
+                          const initialStart = rangeStartX.value;
+                          
+                          const handleMouseMove = (moveEvent) => {
+                            const deltaX = moveEvent.pageX - startX;
+                            rangeStartX.value = clamp(
+                              initialStart + deltaX,
+                              0,
+                              rangeEndX.value - RANGE_HANDLE_SIZE
+                            );
+                          };
+                          
+                          const handleMouseUp = () => {
+                            document.removeEventListener('mousemove', handleMouseMove);
+                            document.removeEventListener('mouseup', handleMouseUp);
+                          };
+                          
+                          document.addEventListener('mousemove', handleMouseMove);
+                          document.addEventListener('mouseup', handleMouseUp);
+                        }}
+                      />
+                      <AnimatedRect
+                        y={chartHeight}
+                        width={RANGE_HANDLE_SIZE}
+                        height={RANGE_HANDLE_SIZE}
+                        fill={RANGE_TOOL_COLOR}
+                        animatedProps={animatedRightHandleProps}
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          const startX = e.nativeEvent.pageX;
+                          const initialEnd = rangeEndX.value;
+                          
+                          const handleMouseMove = (moveEvent) => {
+                            const deltaX = moveEvent.pageX - startX;
+                            rangeEndX.value = clamp(
+                              initialEnd + deltaX,
+                              rangeStartX.value + RANGE_HANDLE_SIZE,
+                              chartWidth
+                            );
+                          };
+                          
+                          const handleMouseUp = () => {
+                            document.removeEventListener('mousemove', handleMouseMove);
+                            document.removeEventListener('mouseup', handleMouseUp);
+                          };
+                          
+                          document.addEventListener('mousemove', handleMouseMove);
+                          document.addEventListener('mouseup', handleMouseUp);
+                        }}
+                      />
+                      <AnimatedRect
+                        y="0"
+                        height={chartHeight}
+                        fill="transparent"
+                        animatedProps={animatedMoveHandleProps}
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          const startX = e.nativeEvent.pageX;
+                          const initialStart = rangeStartX.value;
+                          const initialEnd = rangeEndX.value;
+                          const rangeWidth = initialEnd - initialStart;
+                          
+                          const handleMouseMove = (moveEvent) => {
+                            const deltaX = moveEvent.pageX - startX;
+                            const newStart = clamp(
+                              initialStart + deltaX,
+                              0,
+                              chartWidth - rangeWidth
+                            );
+                            rangeStartX.value = newStart;
+                            rangeEndX.value = newStart + rangeWidth;
+                          };
+                          
+                          const handleMouseUp = () => {
+                            document.removeEventListener('mousemove', handleMouseMove);
+                            document.removeEventListener('mouseup', handleMouseUp);
+                          };
+                          
+                          document.addEventListener('mousemove', handleMouseMove);
+                          document.addEventListener('mouseup', handleMouseUp);
+                        }}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <GestureDetector
+                        gesture={leftHandlePanGesture}
+                        enabled={rangeToolActive}
+                      >
+                        <AnimatedRect
+                          y={chartHeight}
+                          width={RANGE_HANDLE_SIZE}
+                          height={RANGE_HANDLE_SIZE}
+                          fill={RANGE_TOOL_COLOR}
+                          animatedProps={animatedLeftHandleProps}
+                        />
+                      </GestureDetector>
+                      <GestureDetector
+                        gesture={rightHandlePanGesture}
+                        enabled={rangeToolActive}
+                      >
+                        <AnimatedRect
+                          y={chartHeight}
+                          width={RANGE_HANDLE_SIZE}
+                          height={RANGE_HANDLE_SIZE}
+                          fill={RANGE_TOOL_COLOR}
+                          animatedProps={animatedRightHandleProps}
+                        />
+                      </GestureDetector>
+                      <GestureDetector
+                        gesture={movePanGesture}
+                        enabled={rangeToolActive}
+                      >
+                        <AnimatedRect
+                          y="0"
+                          height={chartHeight}
+                          fill="transparent"
+                          animatedProps={animatedMoveHandleProps}
+                        />
+                      </GestureDetector>
+                    </>
+                  )}
                 </AnimatedG>
 
                 {/* --- Value tool(1 line, 1 rectangle) --- */}
@@ -668,18 +765,50 @@ const Minitool_1 = () => {
                     strokeWidth="2"
                     animatedProps={animatedValueLineProps}
                   />
-                  <GestureDetector
-                    gesture={panGesture}
-                    enabled={valueToolActive}
-                  >
+                  {Platform.OS === 'web' && valueToolActive ? (
                     <AnimatedRect
                       y={chartHeight}
                       height="15"
                       width="15"
                       fill={TOOL_COLOR}
                       animatedProps={animatedToolProps}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        const startX = e.nativeEvent.pageX;
+                        const initialTranslate = translateX.value;
+                        
+                        const handleMouseMove = (moveEvent) => {
+                          const deltaX = moveEvent.pageX - startX;
+                          translateX.value = clamp(
+                            initialTranslate + deltaX,
+                            0,
+                            chartWidth
+                          );
+                        };
+                        
+                        const handleMouseUp = () => {
+                          document.removeEventListener('mousemove', handleMouseMove);
+                          document.removeEventListener('mouseup', handleMouseUp);
+                        };
+                        
+                        document.addEventListener('mousemove', handleMouseMove);
+                        document.addEventListener('mouseup', handleMouseUp);
+                      }}
                     />
-                  </GestureDetector>
+                  ) : (
+                    <GestureDetector
+                      gesture={panGesture}
+                      enabled={valueToolActive}
+                    >
+                      <AnimatedRect
+                        y={chartHeight}
+                        height="15"
+                        width="15"
+                        fill={TOOL_COLOR}
+                        animatedProps={animatedToolProps}
+                      />
+                    </GestureDetector>
+                  )}
                 </AnimatedG>
               </G>
               {/* Y-Axis */}

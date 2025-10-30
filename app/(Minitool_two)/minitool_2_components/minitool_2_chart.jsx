@@ -5,7 +5,7 @@ import React, {
   useRef,
   useEffect,
 } from "react";
-import { View, Text, StyleSheet, Button, Switch } from "react-native"; // Added TouchableOpacity
+import { View, Text, StyleSheet, Button, Switch, Platform } from "react-native"; // Added TouchableOpacity
 import Svg, { G, Circle, Line, Text as SvgText, Rect } from "react-native-svg";
 import { scaleLinear } from "d3-scale";
 import Animated, { runOnJS } from "react-native-reanimated";
@@ -122,6 +122,7 @@ function CholesterolLevelChart(settings) {
   const [thresholdLines, setThresholdLines] = useState([]); // For manual draggable lines and static guide boxes
   const [draggingLineId, setDraggingLineId] = useState(null);
   const dragInitialXRef = useRef(0);
+  const isDraggingRef = useRef(false); // Track if a drag operation is in progress
 
   // New state for consolidated grouping feature
   const [groupingType, setGroupingType] = useState("none"); // 'none', 'median', 'quartiles'
@@ -185,7 +186,8 @@ function CholesterolLevelChart(settings) {
 
   const handleAddLineGlobal = useCallback(
     (tapXPosition) => {
-      if (boxCreationMode) {
+      // Don't add a line if we just finished dragging
+      if (boxCreationMode && !isDraggingRef.current) {
         const newId = Date.now();
         const newLine = { id: newId, x: tapXPosition, isDraggable: true };
 
@@ -601,10 +603,10 @@ function CholesterolLevelChart(settings) {
                       strokeWidth={2}
                     />
                     {renderHandle && ( // Render handle only for manual lines in boxCreationMode
-                      <GestureDetector gesture={lineDragGesture}>
+                      Platform.OS === 'web' ? (
                         <Rect
                           x={line.x - handleSize / 2}
-                          y={handleY} // Position of the handle
+                          y={handleY}
                           width={handleSize}
                           height={handleSize}
                           fill={
@@ -613,11 +615,61 @@ function CholesterolLevelChart(settings) {
                               : thresholdColor
                           }
                           stroke="black"
-                          strokeWidth={1}
+                          strokeWidth={2}
                           rx={2}
                           ry={2}
+                          onMouseDown={(e) => {
+                            e.stopPropagation(); // Prevent creating a new line when clicking the handle
+                            isDraggingRef.current = true; // Mark that we're starting a drag
+                            setDraggingLineId(line.id);
+                            dragInitialXRef.current = line.x;
+                            const startX = e.nativeEvent.pageX;
+                            
+                            const handleMouseMove = (moveEvent) => {
+                              const deltaX = moveEvent.pageX - startX;
+                              let newDragX = dragInitialXRef.current + deltaX;
+                              newDragX = Math.max(0, Math.min(newDragX, innerWidth));
+                              handleDragLineUpdateGlobal(line.id, newDragX);
+                            };
+                            
+                            const handleMouseUp = () => {
+                              setDraggingLineId(null);
+                              setThresholdLines((prevLines) =>
+                                [...prevLines].sort((a, b) => a.x - b.x)
+                              );
+                              document.removeEventListener('mousemove', handleMouseMove);
+                              document.removeEventListener('mouseup', handleMouseUp);
+                              
+                              // Reset the dragging flag after a short delay to prevent click from triggering
+                              setTimeout(() => {
+                                isDraggingRef.current = false;
+                              }, 50);
+                            };
+                            
+                            document.addEventListener('mousemove', handleMouseMove);
+                            document.addEventListener('mouseup', handleMouseUp);
+                          }}
+                          style={{ cursor: 'grab' }}
                         />
-                      </GestureDetector>
+                      ) : (
+                        <GestureDetector gesture={lineDragGesture}>
+                          <Rect
+                            x={line.x - handleSize / 2}
+                            y={handleY}
+                            width={handleSize}
+                            height={handleSize}
+                            fill={
+                              draggingLineId === line.id
+                                ? "orange"
+                                : thresholdColor
+                            }
+                            stroke="black"
+                            strokeWidth={1}
+                            rx={2}
+                            ry={2}
+                          />
+                        </GestureDetector>
+                      )
                     )}
                     {/* Text label for the line's value */}
                     <SvgText

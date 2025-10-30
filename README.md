@@ -1,7 +1,16 @@
 # Statistics Analysis App
 
+## 🚀 Live Demo
+
+**Try the app now:** [https://devinmprz.github.io/Statistics-Analysis-App](https://devinmprz.github.io/Statistics-Analysis-App)
+
+No installation required! Access the app directly in your browser to explore all features.
+
+---
+
 ## Contents
 
+- [Live Demo](#-live-demo)
 - [Features](#features)
 - [Requirements](#requirements)
 - [Build & Run](#build--run)
@@ -21,6 +30,9 @@
 
 ## Requirements
 
+> **Note:** If you just want to use the app, visit the [live demo](https://devinmprz.github.io/Statistics-Analysis-App) instead of setting up a development environment.
+
+For local development:
 - **Node.js** v14 or higher
 - **npm** v6 or higher
 

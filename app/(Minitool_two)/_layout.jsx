@@ -7,12 +7,6 @@ const Minitool_2_layout = () => {
     <>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen
-          name="minitool_2"
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
           name="minitool_2_index"
           options={{ title: "Minitool Two Menu" }}
         />

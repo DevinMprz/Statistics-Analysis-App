@@ -23,10 +23,13 @@
       }
     },
     "web": {
-      "favicon": ""
+      "favicon": "",
+      "bundler": "metro",
+      "output": "static"
     },
-    "plugins": [
-      "expo-router"
-    ]
+    "experiments": {
+      "baseUrl": "/Statistics-Analysis-App"
+    },
+    "plugins": ["expo-router"]
   }
 }

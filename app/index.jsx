@@ -32,7 +32,7 @@ export default function App() {
           />
           <CustomButton
             title="Minitool2"
-            handlePress={() => router.push("/minitool_2_index")}
+            handlePress={() => router.push("/cholesterol")}
             containerStyles="w-full mt-7"
           />
           <CustomButton

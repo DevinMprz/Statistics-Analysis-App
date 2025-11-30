@@ -34,6 +34,7 @@ const useRangeTool = ({
   rangeHandleSize = 15,
   rangeToolColor = "#0000FF",
   displayedData = [],
+  X_AXIS_HEIGHT,
 }) => {
   // --- Range Tool Gesture Logic ---
   const initialRangeStartX = (initialStartValue / maxLifespan) * chartWidth;
@@ -162,21 +163,21 @@ const useRangeTool = ({
     <AnimatedG animatedProps={rangeToolContainerAnimatedProps}>
       <AnimatedRect
         y="0"
-        height={chartHeight}
+        height={chartHeight + X_AXIS_HEIGHT}
         fill={rangeToolColor}
         opacity="0.2"
         animatedProps={animatedRangeRectProps}
       />
       <AnimatedLine
         y1="0"
-        y2={chartHeight}
+        y2={chartHeight + X_AXIS_HEIGHT}
         stroke={rangeToolColor}
         strokeWidth="2"
         animatedProps={animatedRangeLeftLineProps}
       />
       <AnimatedLine
         y1="0"
-        y2={chartHeight}
+        y2={chartHeight + X_AXIS_HEIGHT}
         stroke={rangeToolColor}
         strokeWidth="2"
         animatedProps={animatedRangeRightLineProps}
@@ -186,12 +187,13 @@ const useRangeTool = ({
       {/* {Platform.OS === "web" && isActive ? ( */}
       <>
         <AnimatedRect
-          y={chartHeight}
+          y={chartHeight + X_AXIS_HEIGHT}
           width={rangeHandleSize}
           height={rangeHandleSize}
           fill={rangeToolColor}
           animatedProps={animatedLeftHandleProps}
           onMouseDown={(e) => {
+            e.preventDefault();
             e.stopPropagation();
             const startX = e.nativeEvent.pageX;
             const initialStart = rangeStartX.value;
@@ -215,12 +217,13 @@ const useRangeTool = ({
           }}
         />
         <AnimatedRect
-          y={chartHeight}
+          y={chartHeight + X_AXIS_HEIGHT}
           width={rangeHandleSize}
           height={rangeHandleSize}
           fill={rangeToolColor}
           animatedProps={animatedRightHandleProps}
           onMouseDown={(e) => {
+            e.preventDefault();
             e.stopPropagation();
             const startX = e.nativeEvent.pageX;
             const initialEnd = rangeEndX.value;
@@ -249,6 +252,7 @@ const useRangeTool = ({
           fill="transparent"
           animatedProps={animatedMoveHandleProps}
           onMouseDown={(e) => {
+            e.preventDefault();
             e.stopPropagation();
             const startX = e.nativeEvent.pageX;
             const initialStart = rangeStartX.value;

@@ -30,6 +30,7 @@ const useValueTool = ({
   maxLifespan = 130,
   toolValue = 80.0,
   toolColor = "red",
+  X_AXIS_HEIGHT,
 }) => {
   // --- Value Tool Gesture Logic ---
   const initialTranslateX = (toolValue / maxLifespan) * chartWidth;
@@ -101,19 +102,20 @@ const useValueTool = ({
     <AnimatedG animatedProps={valueToolContainerAnimatedProps}>
       <AnimatedLine
         y1={-5}
-        y2={chartHeight}
+        y2={chartHeight + X_AXIS_HEIGHT}
         stroke={toolColor}
         strokeWidth="2"
         animatedProps={animatedValueLineProps}
       />
       {/* {Platform.OS === "web" && isActive ? ( */}
       <AnimatedRect
-        y={chartHeight}
+        y={chartHeight + X_AXIS_HEIGHT}
         height="15"
         width="15"
         fill={toolColor}
         animatedProps={animatedToolProps}
         onMouseDown={(e) => {
+          e.preventDefault();
           e.stopPropagation();
           const startX = e.nativeEvent.pageX;
           const initialTranslate = translateX.value;

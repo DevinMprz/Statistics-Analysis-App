@@ -70,6 +70,8 @@ const TOOL_LABEL_OFFSET_Y = 25;
 const RANGE_LABEL_OFFSET_Y = 15;
 const TOP_BUFFER = RANGE_LABEL_OFFSET_Y + 10;
 
+const SIDEBAR_WIDTH = 120;
+
 const { width, height } = Dimensions.get("window");
 
 const Minitool_1 = () => {
@@ -94,11 +96,12 @@ const Minitool_1 = () => {
     visibleBars.length > 0
       ? Math.max(...visibleBars.map((item) => item.lifespan))
       : 0;
-  const barCount = visibleBars.length;
+  const barCount = 20;
 
-  const chartHeight = Math.max(10, barCount * (BAR_HEIGHT + BAR_SPACING));
+  const chartHeight = Math.max(10, barCount * (BAR_HEIGHT + 2 * BAR_SPACING));
+  console.log("Chart Height:", chartHeight);
   const SVG_HEIGHT = chartHeight + X_AXIS_HEIGHT + TOP_BUFFER;
-  const SVG_WIDTH = width - PADDING * 2;
+  const SVG_WIDTH = width - PADDING * 2 - SIDEBAR_WIDTH;
   const chartWidth =
     SVG_WIDTH - Y_AXIS_WIDTH > 0 ? SVG_WIDTH - Y_AXIS_WIDTH : 1;
 
@@ -117,6 +120,7 @@ const Minitool_1 = () => {
     maxLifespan: MAX_LIFESPAN,
     toolValue,
     toolColor: TOOL_COLOR,
+    X_AXIS_HEIGHT: X_AXIS_HEIGHT,
   });
 
   // --- Range Tool Gesture Logic (extracted to useRangeTool hook) ---
@@ -132,6 +136,7 @@ const Minitool_1 = () => {
     rangeHandleSize: RANGE_HANDLE_SIZE,
     rangeToolColor: RANGE_TOOL_COLOR,
     displayedData,
+    X_AXIS_HEIGHT: X_AXIS_HEIGHT,
   });
 
   // --- Data Generation Modal Hook (initialized after tools) ---
@@ -364,16 +369,16 @@ const Minitool_1 = () => {
                   {/* --- Whole bar chart --- */}
                   <Svg
                     width={SVG_WIDTH - Y_AXIS_WIDTH}
-                    height={SVG_HEIGHT}
+                    height={SVG_HEIGHT + X_AXIS_HEIGHT}
                     style={{ zIndex: 1 }}
                   >
                     <G x={Y_AXIS_WIDTH} y={TOP_BUFFER}>
                       {/* X-Axis */}
                       <Line
                         x1="0"
-                        y1={chartHeight}
+                        y1={chartHeight + X_AXIS_HEIGHT}
                         x2={chartWidth}
-                        y2={chartHeight}
+                        y2={chartHeight + X_AXIS_HEIGHT}
                         stroke={AXIS_COLOR}
                         strokeWidth="1"
                       />
@@ -390,7 +395,7 @@ const Minitool_1 = () => {
                           <SvgText
                             key={`label-${i}`}
                             x={xPos}
-                            y={chartHeight + 15}
+                            y={chartHeight + X_AXIS_HEIGHT + 15}
                             fill={AXIS_COLOR}
                             fontSize="12"
                             textAnchor="middle"
@@ -429,61 +434,61 @@ const Minitool_1 = () => {
                       x1={Y_AXIS_WIDTH}
                       y1={TOP_BUFFER}
                       x2={Y_AXIS_WIDTH}
-                      y2={chartHeight + TOP_BUFFER}
+                      y2={chartHeight + X_AXIS_HEIGHT + TOP_BUFFER}
                       stroke={AXIS_COLOR}
                       strokeWidth="1"
                     />
                   </Svg>
                 </View>
-                {/* --- Stats Sidebar --- */}
-                <View
+              </ScrollView>
+              {/* --- Stats Sidebar --- */}
+              <View
+                style={{
+                  width: SIDEBAR_WIDTH,
+                  backgroundColor: "#f0f0f0",
+                  padding: 15,
+                  justifyContent: "flex-start",
+                  borderLeftWidth: 1,
+                  borderLeftColor: "#ccc",
+                }}
+              >
+                <Text
                   style={{
-                    width: 120,
-                    backgroundColor: "#f0f0f0",
-                    padding: 15,
-                    justifyContent: "flex-start",
-                    borderLeftWidth: 1,
-                    borderLeftColor: "#ccc",
+                    fontSize: 12,
+                    fontWeight: "bold",
+                    marginBottom: 10,
                   }}
                 >
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      fontWeight: "bold",
-                      marginBottom: 10,
-                    }}
-                  >
-                    Min:
-                  </Text>
-                  <Text style={{ fontSize: 14, marginBottom: 15 }}>
-                    {minLifespan}
-                  </Text>
+                  Min:
+                </Text>
+                <Text style={{ fontSize: 14, marginBottom: 15 }}>
+                  {minLifespan}
+                </Text>
 
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      fontWeight: "bold",
-                      marginBottom: 10,
-                    }}
-                  >
-                    Max:
-                  </Text>
-                  <Text style={{ fontSize: 14, marginBottom: 15 }}>
-                    {maxLifespan}
-                  </Text>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: "bold",
+                    marginBottom: 10,
+                  }}
+                >
+                  Max:
+                </Text>
+                <Text style={{ fontSize: 14, marginBottom: 15 }}>
+                  {maxLifespan}
+                </Text>
 
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      fontWeight: "bold",
-                      marginBottom: 10,
-                    }}
-                  >
-                    Amount:
-                  </Text>
-                  <Text style={{ fontSize: 14 }}>{barCount}</Text>
-                </View>
-              </ScrollView>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: "bold",
+                    marginBottom: 10,
+                  }}
+                >
+                  Amount:
+                </Text>
+                <Text style={{ fontSize: 14 }}>{barCount}</Text>
+              </View>
             </View>
           )}
         <Text style={styles.xAxisTitle}>Life Span (hours)</Text>

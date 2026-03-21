@@ -12,11 +12,35 @@ import {
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import ScatterPlot from "./chart_components/ScatterPlot";
 import ScatterControls from "./controls/ScatterControls";
-import DataInfo from "./modals/DataInfo";
+import DataInfo from "./modals/InfoModal";
 import bivariateData from "../../data/bivariate_set.json";
 
 const Minitool_3 = () => {
-  const [displayMode, setDisplayMode] = useState("dots");
+  const [showCross, setShowCross] = useState(false);
+  const [hideData, setHideData] = useState(false);
+  const [activeGrid, setActiveGrid] = useState(null);
+  const [twoGroupsCount, setTwoGroupsCount] = useState(null);
+  const [fourGroupsCount, setFourGroupsCount] = useState(null);
+  const [selectedPoint, setSelectedPoint] = useState(null);
+  const [scrollEnabled, setScrollEnabled] = useState(true);
+
+  const handleActiveGridChange = (val) => {
+    setActiveGrid(val);
+    setTwoGroupsCount(null);
+    setFourGroupsCount(null);
+  };
+
+  const handleTwoGroupsChange = (val) => {
+    setTwoGroupsCount(val);
+    setActiveGrid(null);
+    setFourGroupsCount(null);
+  };
+
+  const handleFourGroupsChange = (val) => {
+    setFourGroupsCount(val);
+    setActiveGrid(null);
+    setTwoGroupsCount(null);
+  };
 
   const [currentKey, setCurrentKey] = useState("dataset1");
   const [isOpen, setIsOpen] = useState(false);
@@ -39,6 +63,7 @@ const Minitool_3 = () => {
           style={styles.mainContainer}
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
+          scrollEnabled={scrollEnabled}
         >
           {/* The Dropdown Overaly */}
           <View style={styles.dropdownContainer}>
@@ -69,13 +94,34 @@ const Minitool_3 = () => {
 
           {/* Main Chart Section */}
           <View style={styles.chartSection}>
-            <ScatterPlot data={currentData} />
+            <ScatterPlot
+              data={currentData}
+              showCross={showCross}
+              hideData={hideData}
+              activeGrid={activeGrid}
+              twoGroupsCount={twoGroupsCount}
+              fourGroupsCount={fourGroupsCount}
+              selectedPoint={selectedPoint}
+              onPointSelect={setSelectedPoint}
+              onScrollEnabled={setScrollEnabled}
+            />
           </View>
 
           {/* Controls and Info Row */}
           <View style={styles.controlsSection}>
             <View style={{ flex: 1 }}>
-              <ScatterControls onDisplayModeChange={setDisplayMode} />
+              <ScatterControls
+                showCross={showCross}
+                onShowCrossChange={setShowCross}
+                hideData={hideData}
+                onHideDataChange={setHideData}
+                activeGrid={activeGrid}
+                onActiveGridChange={handleActiveGridChange}
+                twoGroupsCount={twoGroupsCount}
+                onTwoGroupsChange={handleTwoGroupsChange}
+                fourGroupsCount={fourGroupsCount}
+                onFourGroupsChange={handleFourGroupsChange}
+              />
             </View>
             {/* <View style={{ marginLeft: 10 }}>
               <DataInfo data={currentData} />

@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Switch,
-  Alert,
   Dimensions,
   Modal,
   FlatList,
@@ -14,30 +13,33 @@ import {
 } from "react-native";
 import InfoModal from "../modals/InfoModal";
 
-const ScatterControls = ({ onDisplayModeChange }) => {
-  const [selectedMode, setSelectedMode] = useState("dots");
-
-  const displayModes = [
-    { id: "dots", label: "Dots", description: "Show data points only" },
-    { id: "cross", label: "Cross", description: "Divide into 4 cells" },
-    { id: "grid", label: "Grid", description: "Show grid overlay" },
-    { id: "twoGroups", label: "2 Groups", description: "2 equal groups" },
-    { id: "fourGroups", label: "4 Groups", description: "4 equal groups" },
-  ];
-
-  const handleModeChange = (modeId) => {
-    setSelectedMode(modeId);
-    onDisplayModeChange?.(modeId);
-  };
-
-  const [showCross, setShowCross] = useState(false);
-  const [hideData, setHideData] = useState(false);
-
+const ScatterControls = ({
+  showCross,
+  onShowCrossChange,
+  hideData,
+  onHideDataChange,
+  activeGrid,
+  onActiveGridChange,
+  twoGroupsCount,
+  onTwoGroupsChange,
+  fourGroupsCount,
+  onFourGroupsChange,
+}) => {
   // States for 3 different dropdowns
   const [openDropdown, setOpenDropdown] = useState(null); // 'two', 'four', 'grids'
 
   const [modalVisible, setModalVisible] = useState(false);
   const [modalContent, setModalContent] = useState({ title: "", message: "" });
+
+  const groupOptions = Array.from({ length: 7 }, (_, i) => ({
+    label: `${i + 4}`,
+    value: i + 4,
+  }));
+
+  const gridOptions = Array.from({ length: 8 }, (_, i) => ({
+    label: `${i + 3}×${i + 3}`,
+    value: i + 3,
+  }));
 
   const handleInfoPress = (title, message) => {
     setModalContent({ title, message });
@@ -47,11 +49,11 @@ const ScatterControls = ({ onDisplayModeChange }) => {
   const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
   const DropdownItem = ({
-    id,
     label,
     infoTitle,
     infoBody,
     options,
+    value,
     onSelect,
   }) => {
     const [expanded, setExpanded] = useState(false);
@@ -60,6 +62,8 @@ const ScatterControls = ({ onDisplayModeChange }) => {
     const [dropdownLeft, setDropdownLeft] = useState(0);
 
     const buttonRef = useRef(null);
+
+    const selectedLabel = options?.find((o) => o.value === value)?.label;
 
     const toggleDropdown = () => {
       if (!expanded) {
@@ -87,14 +91,13 @@ const ScatterControls = ({ onDisplayModeChange }) => {
           <Text style={styles.infoText}>i</Text>
         </TouchableOpacity>
 
-        {/* 2. Dropdown Header */}
         <View style={styles.dropdownWrapper} ref={buttonRef}>
           <TouchableOpacity
             style={styles.dropdownHeader}
             activeOpacity={0.8}
             onPress={toggleDropdown}
           >
-            <Text style={styles.headerText}>{label} ▼</Text>
+            <Text style={styles.headerText}>{selectedLabel ?? label} ▼</Text>
           </TouchableOpacity>
         </View>
 
@@ -113,18 +116,13 @@ const ScatterControls = ({ onDisplayModeChange }) => {
                 ]}
               >
                 <FlatList
-                  data={
-                    options || [
-                      { label: "Dataset 1", value: "1" },
-                      { label: "Dataset 2", value: "2" },
-                    ]
-                  }
-                  keyExtractor={(item) => item.value}
+                  data={options}
+                  keyExtractor={(item) => String(item.value)}
                   renderItem={({ item }) => (
                     <TouchableOpacity
                       style={styles.optionItem}
                       onPress={() => {
-                        onSelect(item);
+                        onSelect(item.value);
                         setExpanded(false);
                       }}
                     >
@@ -152,34 +150,40 @@ const ScatterControls = ({ onDisplayModeChange }) => {
         <View style={styles.switchColumn}>
           <View style={styles.switchGroup}>
             <Text style={styles.label}>Show Cross</Text>
-            <Switch value={showCross} onValueChange={setShowCross} />
+            <Switch value={showCross} onValueChange={onShowCrossChange} />
           </View>
 
           <View style={styles.switchGroup}>
             <Text style={styles.label}>Hide Data</Text>
-            <Switch value={hideData} onValueChange={setHideData} />
+            <Switch value={hideData} onValueChange={onHideDataChange} />
           </View>
         </View>
 
         {/* Right Column: Dropdowns */}
         <View style={styles.dropdownColumn}>
           <DropdownItem
-            id="two"
             label="Two Groups"
             infoTitle="Two Equal Groups"
             infoBody="Divides plot into groups + shows median, low, and high values."
+            options={groupOptions}
+            value={twoGroupsCount}
+            onSelect={onTwoGroupsChange}
           />
           <DropdownItem
-            id="four"
             label="Four Groups"
             infoTitle="Four Equal Groups"
             infoBody="Divides plot into groups + shows median, low, high, and quartiles."
+            options={groupOptions}
+            value={fourGroupsCount}
+            onSelect={onFourGroupsChange}
           />
           <DropdownItem
-            id="grids"
             label="Grids"
             infoTitle="Grids Mode"
             infoBody="Divides plot into grid groups with full statistical markers."
+            options={gridOptions}
+            value={activeGrid}
+            onSelect={onActiveGridChange}
           />
         </View>
 

@@ -30,6 +30,7 @@
     "react-dom": "19.0.0",
     "react-native": "0.79.3",
     "react-native-charts-wrapper": "^0.6.0",
+    "react-native-element-dropdown": "^2.12.4",
     "react-native-gesture-handler": "^2.26.0",
     "react-native-gifted-charts": "^1.4.55",
     "react-native-linear-gradient": "^2.8.3",

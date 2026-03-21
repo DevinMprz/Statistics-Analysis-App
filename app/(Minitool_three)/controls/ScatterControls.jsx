@@ -1,0 +1,364 @@
+import React, { useState, useRef } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Switch,
+  Alert,
+  Dimensions,
+  Modal,
+  FlatList,
+  TouchableWithoutFeedback,
+} from "react-native";
+import InfoModal from "../modals/InfoModal";
+
+const ScatterControls = ({ onDisplayModeChange }) => {
+  const [selectedMode, setSelectedMode] = useState("dots");
+
+  const displayModes = [
+    { id: "dots", label: "Dots", description: "Show data points only" },
+    { id: "cross", label: "Cross", description: "Divide into 4 cells" },
+    { id: "grid", label: "Grid", description: "Show grid overlay" },
+    { id: "twoGroups", label: "2 Groups", description: "2 equal groups" },
+    { id: "fourGroups", label: "4 Groups", description: "4 equal groups" },
+  ];
+
+  const handleModeChange = (modeId) => {
+    setSelectedMode(modeId);
+    onDisplayModeChange?.(modeId);
+  };
+
+  const [showCross, setShowCross] = useState(false);
+  const [hideData, setHideData] = useState(false);
+
+  // States for 3 different dropdowns
+  const [openDropdown, setOpenDropdown] = useState(null); // 'two', 'four', 'grids'
+
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalContent, setModalContent] = useState({ title: "", message: "" });
+
+  const handleInfoPress = (title, message) => {
+    setModalContent({ title, message });
+    setModalVisible(true);
+  };
+
+  const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+  const DropdownItem = ({
+    id,
+    label,
+    infoTitle,
+    infoBody,
+    options,
+    onSelect,
+  }) => {
+    const [expanded, setExpanded] = useState(false);
+    const [dropdownTop, setDropdownTop] = useState(0);
+    const [dropdownWidth, setDropdownWidth] = useState(0);
+    const [dropdownLeft, setDropdownLeft] = useState(0);
+
+    const buttonRef = useRef(null);
+
+    const toggleDropdown = () => {
+      if (!expanded) {
+        // Measure the button's position on the screen before opening
+        buttonRef.current.measure((x, y, width, height, pageX, pageY) => {
+          setDropdownTop(pageY + height); // Position list exactly below button
+          setDropdownLeft(pageX);
+          setDropdownWidth(width);
+          setExpanded(true);
+        });
+      } else {
+        setExpanded(false);
+      }
+    };
+
+    return (
+      <View style={styles.dropdownRow}>
+        {/* 1. Info Icon */}
+        <TouchableOpacity
+          style={styles.infoCircle}
+          onPress={() => {
+            handleInfoPress(label, infoBody);
+          }}
+        >
+          <Text style={styles.infoText}>i</Text>
+        </TouchableOpacity>
+
+        {/* 2. Dropdown Header */}
+        <View style={styles.dropdownWrapper} ref={buttonRef}>
+          <TouchableOpacity
+            style={styles.dropdownHeader}
+            activeOpacity={0.8}
+            onPress={toggleDropdown}
+          >
+            <Text style={styles.headerText}>{label} ▼</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* 3. The Modal Dropdown List */}
+        <Modal visible={expanded} transparent animationType="none">
+          <TouchableWithoutFeedback onPress={() => setExpanded(false)}>
+            <View style={styles.modalOverlay}>
+              <View
+                style={[
+                  styles.modalOptions,
+                  {
+                    top: dropdownTop,
+                    left: dropdownLeft,
+                    width: dropdownWidth,
+                  },
+                ]}
+              >
+                <FlatList
+                  data={
+                    options || [
+                      { label: "Dataset 1", value: "1" },
+                      { label: "Dataset 2", value: "2" },
+                    ]
+                  }
+                  keyExtractor={(item) => item.value}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.optionItem}
+                      onPress={() => {
+                        onSelect(item);
+                        setExpanded(false);
+                      }}
+                    >
+                      <Text style={styles.itemText}>{item.label}</Text>
+                    </TouchableOpacity>
+                  )}
+                />
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
+      </View>
+    );
+  };
+
+  return (
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={styles.scrollContent}
+      // This prop ensures the dropdown doesn't get cut off by the scroll container
+      nestedScrollEnabled={true}
+    >
+      <View style={styles.mainContainer}>
+        {/* Left Column: Switches */}
+        <View style={styles.switchColumn}>
+          <View style={styles.switchGroup}>
+            <Text style={styles.label}>Show Cross</Text>
+            <Switch value={showCross} onValueChange={setShowCross} />
+          </View>
+
+          <View style={styles.switchGroup}>
+            <Text style={styles.label}>Hide Data</Text>
+            <Switch value={hideData} onValueChange={setHideData} />
+          </View>
+        </View>
+
+        {/* Right Column: Dropdowns */}
+        <View style={styles.dropdownColumn}>
+          <DropdownItem
+            id="two"
+            label="Two Groups"
+            infoTitle="Two Equal Groups"
+            infoBody="Divides plot into groups + shows median, low, and high values."
+          />
+          <DropdownItem
+            id="four"
+            label="Four Groups"
+            infoTitle="Four Equal Groups"
+            infoBody="Divides plot into groups + shows median, low, high, and quartiles."
+          />
+          <DropdownItem
+            id="grids"
+            label="Grids"
+            infoTitle="Grids Mode"
+            infoBody="Divides plot into grid groups with full statistical markers."
+          />
+        </View>
+
+        {/* 3. THE MODAL (Placed at the bottom of JSX) */}
+        <InfoModal
+          visible={modalVisible}
+          title={modalContent.title}
+          message={modalContent.message}
+          onClose={() => setModalVisible(false)}
+        />
+      </View>
+    </ScrollView>
+  );
+};
+const styles = StyleSheet.create({
+  scrollContent: {
+    paddingBottom: 150,
+  },
+  mainContainer: {
+    flexDirection: "row", // Side-by-side layout
+    width: "100%",
+    padding: 15,
+    backgroundColor: "#fff",
+    alignItems: "flex-start",
+    zIndex: 1,
+    overflow: "visible",
+  },
+  /* --- Left Column --- */
+  switchColumn: {
+    flex: 1, // Takes 40-50% of space
+    justifyContent: "space-around",
+    borderRightWidth: 1,
+    borderRightColor: "#eee",
+    paddingRight: 10,
+  },
+  switchGroup: {
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  label: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 5,
+    fontWeight: "600",
+  },
+  /* --- Right Column --- */
+  dropdownColumn: {
+    flex: 1.5, // Takes more space for the menus
+    paddingLeft: 15,
+    justifyContent: "space-around",
+    overflow: "visible",
+  },
+  dropdownRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 15,
+  },
+  infoCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#2563eb",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 8,
+  },
+  infoText: {
+    color: "#2563eb",
+    fontSize: 14,
+    fontWeight: "bold",
+    fontStyle: "italic",
+  },
+  dropdownWrapper: {
+    flex: 1, // Takes up remaining space
+  },
+  dropdownHeader: {
+    height: 45,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 15,
+  },
+  headerText: {
+    fontSize: 14,
+    color: "#333",
+  },
+  /* --- Modal Styles --- */
+  modalOverlay: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+  },
+  modalOptions: {
+    position: "absolute",
+    backgroundColor: "white",
+    borderRadius: 8,
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: "#eee",
+    maxHeight: 200,
+    overflow: "hidden",
+  },
+  optionItem: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+    alignItems: "center",
+  },
+  itemText: {
+    color: "#2563eb",
+    fontSize: 14,
+  },
+});
+// const styles = StyleSheet.create({
+//   footer: {
+//     flexDirection: "row",
+//     alignItems: "center", // Centers them vertically relative to each other
+//     justifyContent: "space-between",
+//     paddingHorizontal: 20,
+//     marginTop: 20,
+//     width: "100%",
+//     zIndex: 10, // Ensure the dropdown inside can float
+//   },
+//   leftColumn: {
+//     flex: 1, // Takes up the available space on the left
+//     paddingRight: 10,
+//   },
+//   rightColumn: {
+//     flex: 1,
+//     alignItems: "flex-end", // Pushes the dropdown to the right edge
+//   },
+//   descriptionTitle: {
+//     fontSize: 16,
+//     fontWeight: "bold",
+//     color: "#333",
+//   },
+//   descriptionSub: {
+//     fontSize: 12,
+//     color: "#666",
+//     marginTop: 2,
+//   },
+//   dropdownContainer: {
+//     width: 150, // Slightly smaller for the side-bar look
+//     position: "relative",
+//     zIndex: 100,
+//   },
+//   dropdownHeader: {
+//     backgroundColor: "#fff",
+//     borderWidth: 1,
+//     borderColor: "#ccc",
+//     padding: 10,
+//     borderRadius: 8,
+//     width: "100%",
+//   },
+//   dropdownList: {
+//     position: "absolute",
+//     // We use 'bottom: 45' if you want it to open UPWARD
+//     // or 'top: 45' to open DOWNWARD
+//     top: 45,
+//     right: 0,
+//     width: "100%",
+//     backgroundColor: "#fff",
+//     borderWidth: 1,
+//     borderColor: "#ccc",
+//     borderRadius: 8,
+//     elevation: 5,
+//     shadowColor: "#000",
+//     shadowOffset: { width: 0, height: 2 },
+//     shadowOpacity: 0.2,
+//     zIndex: 1000,
+//   },
+// });
+export default ScatterControls;

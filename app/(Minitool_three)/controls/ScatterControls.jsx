@@ -25,28 +25,29 @@ const ScatterControls = ({
   fourGroupsCount,
   onFourGroupsChange,
 }) => {
-  // States for 3 different dropdowns
-  const [openDropdown, setOpenDropdown] = useState(null); // 'two', 'four', 'grids'
-
   const [modalVisible, setModalVisible] = useState(false);
   const [modalContent, setModalContent] = useState({ title: "", message: "" });
 
-  const groupOptions = Array.from({ length: 7 }, (_, i) => ({
-    label: `${i + 4}`,
-    value: i + 4,
-  }));
+  const groupOptions = [
+    { label: "Off", value: null },
+    ...Array.from({ length: 7 }, (_, i) => ({
+      label: `${i + 4}`,
+      value: i + 4,
+    })),
+  ];
 
-  const gridOptions = Array.from({ length: 8 }, (_, i) => ({
-    label: `${i + 3}×${i + 3}`,
-    value: i + 3,
-  }));
+  const gridOptions = [
+    { label: "Off", value: null },
+    ...Array.from({ length: 8 }, (_, i) => ({
+      label: `${i + 3}×${i + 3}`,
+      value: i + 3,
+    })),
+  ];
 
   const handleInfoPress = (title, message) => {
     setModalContent({ title, message });
     setModalVisible(true);
   };
-
-  const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
   const DropdownItem = ({
     label,
@@ -64,6 +65,7 @@ const ScatterControls = ({
     const buttonRef = useRef(null);
 
     const selectedLabel = options?.find((o) => o.value === value)?.label;
+    const headerLabel = selectedLabel ? `${label}: ${selectedLabel}` : `${label}: Off`;
 
     const toggleDropdown = () => {
       if (!expanded) {
@@ -97,7 +99,7 @@ const ScatterControls = ({
             activeOpacity={0.8}
             onPress={toggleDropdown}
           >
-            <Text style={styles.headerText}>{selectedLabel ?? label} ▼</Text>
+            <Text style={styles.headerText}>{headerLabel} ▼</Text>
           </TouchableOpacity>
         </View>
 

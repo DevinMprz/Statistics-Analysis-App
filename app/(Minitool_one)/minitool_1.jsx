@@ -13,6 +13,8 @@ import {
   TextInput,
   Alert,
   TouchableOpacity,
+  ActivityIndicator,
+  FlatList,
 } from "react-native";
 import {
   Gesture,
@@ -29,6 +31,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import Svg, { Rect, Circle, Line, G, Text as SvgText } from "react-native-svg";
+import axios from "axios";
 import initialBatteryData from "../../data/batteryScenario_set.json";
 import BatteryBar from "./chart_components/BatteryBar";
 import useValueTool from "./tools/ValueTool";
@@ -74,6 +77,9 @@ const SIDEBAR_WIDTH = 120;
 
 const { width, height } = Dimensions.get("window");
 
+// API Configuration
+const API_URL = "http://localhost:5000/api/scenarios";
+
 const Minitool_1 = () => {
   const [currentBatteryData, setCurrentBatteryData] =
     useState(initialBatteryData);
@@ -82,6 +88,14 @@ const Minitool_1 = () => {
   const [rangeCount, setRangeCount] = useState(0);
 
   const [isHelpVisible, setIsHelpVisible] = useState(false);
+
+  // Database-related state
+  const [scenarios, setScenarios] = useState([]);
+  const [isLoadingScenarios, setIsLoadingScenarios] = useState(false);
+  const [selectedScenarioId, setSelectedScenarioId] = useState(null);
+  const [showScenariosModal, setShowScenariosModal] = useState(false);
+  const [scenarioName, setScenarioName] = useState("");
+  const [isSavingScenario, setIsSavingScenario] = useState(false);
 
   // --- Chart Controls Hook (extracted to useChartControls hook) ---
   const chartControls = useChartControls();
@@ -174,14 +188,16 @@ const Minitool_1 = () => {
   // --- Function to handle value tool ---
   useAnimatedReaction(
     () => valueTool.translateX.value,
-    () => {
-      // Value update is handled inside ValueTool component
-    },
-    [chartWidth]
+    () => {},
+    [chartWidth],
   );
   // --- Function to handle range tool (moved to RangeTool component) ---
 
   // --- Sorting and filtering handlers ---
+  useEffect(() => {
+    fetchScenarios();
+  }, []);
+
   useEffect(() => {
     let dataToDisplay = [...currentBatteryData];
 
@@ -210,7 +226,6 @@ const Minitool_1 = () => {
   ]);
 
   // --- Handlers for Modal(Pop up window which allows to generate random data) ---
-  // Now handled by useDataGenerationModal hook - open via dataGenerationModal.handleOpenModal()
 
   // --- Reset data to the initial one(which was diaplayed first) ---
   const handleResetData = () => {
@@ -228,11 +243,114 @@ const Minitool_1 = () => {
 
   const handleRemoveLastBar = () => {
     if (currentBatteryData.length === 0) {
-      Alert.alert("Empty Chart", "There are no batteries to remove.");
+      alert(`Empty Chart.There are no batteries to remove.`);
       return;
     }
     const newData = currentBatteryData.slice(0, -1);
     setCurrentBatteryData(newData);
+  };
+
+  // --- Database Functions ---
+  const fetchScenarios = async () => {
+    try {
+      setIsLoadingScenarios(true);
+      const response = await axios.get(API_URL);
+      if (response.data.success) {
+        setScenarios(response.data.data);
+      }
+    } catch (error) {
+      console.error("Error fetching scenarios:", error);
+      if (error.code === "ERR_NETWORK") {
+        alert(
+          "Connection Error. Unable to connect to database. Make sure the backend server is running on port 5000.",
+        );
+      } else {
+        alert("Error.Failed to fetch scenarios from database");
+      }
+    } finally {
+      setIsLoadingScenarios(false);
+    }
+  };
+
+  const saveScenario = async () => {
+    if (!scenarioName.trim()) {
+      alert(`Input Error.Please enter a scenario name`);
+      return;
+    }
+
+    try {
+      setIsSavingScenario(true);
+      const response = await axios.post(API_URL, {
+        name: scenarioName,
+        description: "Battery lifespan scenario",
+        data: currentBatteryData,
+        minLifespan:
+          displayedData.length > 0
+            ? Math.min(...displayedData.map((item) => item.lifespan))
+            : null,
+        maxLifespan:
+          displayedData.length > 0
+            ? Math.max(...displayedData.map((item) => item.lifespan))
+            : null,
+      });
+
+      if (response.data.success) {
+        alert(`Success.Scenario saved successfully`);
+        setScenarios([...scenarios, response.data.data]);
+        setScenarioName("");
+        setShowScenariosModal(false);
+      }
+    } catch (error) {
+      console.error("Error saving scenario:", error);
+      alert(`Error.Failed to save scenario to database`);
+    } finally {
+      setIsSavingScenario(false);
+    }
+  };
+
+  const loadScenario = async (scenarioId) => {
+    try {
+      const response = await axios.get(`${API_URL}/${scenarioId}`);
+      if (response.data.success) {
+        const scenarioData = response.data.data;
+        setCurrentBatteryData(scenarioData.data);
+        setSelectedScenarioId(scenarioId);
+        chartControls.setIsSortedByColor(false);
+        chartControls.setIsSortedBySize(false);
+        alert(`Success.Loaded scenario: ${scenarioData.name}`);
+        setShowScenariosModal(false);
+      }
+    } catch (error) {
+      console.error("Error loading scenario:", error);
+      alert(`Error.Failed to load scenario from database`);
+    }
+  };
+
+  const deleteScenario = async (scenarioId) => {
+    alert(`Confirm Delete`, `Are you sure you want to delete this scenario?`, [
+      { text: "Cancel", onPress: () => {}, style: "cancel" },
+      {
+        text: "Delete",
+        onPress: async () => {
+          try {
+            const response = await axios.delete(`${API_URL}/${scenarioId}`);
+            if (response.data.success) {
+              setScenarios(
+                scenarios.filter((scenario) => scenario._id !== scenarioId),
+              );
+              if (selectedScenarioId === scenarioId) {
+                setSelectedScenarioId(null);
+              }
+              alert(`Success.Scenario deleted successfully`);
+            }
+          } catch (error) {
+            console.error("Error deleting scenario:", error);
+            alert(`Error.Failed to delete scenario`);
+          }
+        },
+        style: "destructive",
+      },
+    ]);
   };
 
   // Handlers for add bar modal are now in useBarGenerationModal hook
@@ -420,7 +538,7 @@ const Minitool_1 = () => {
                               dotsOnly={chartControls.showDotsOnly}
                               maxLifespan={MAX_LIFESPAN}
                             />
-                          )
+                          ),
                       )}
 
                       {/* --- Range tool (3 Line, 3 rectangles) - rendered by RangeTool hook --- */}
@@ -528,11 +646,120 @@ const Minitool_1 = () => {
           </View>
         </View>
 
-        {/* --- Pop-up window for generating data set (now via hook) --- */}
+        {/* --- Database Scenario Management Buttons --- */}
+        <View style={styles.databaseButtonContainer}>
+          <View style={styles.buttonWrapper}>
+            <Button
+              title="Save Current Scenario"
+              onPress={() => setShowScenariosModal(true)}
+              color="#0066cc"
+            />
+          </View>
+          <View style={styles.buttonWrapper}>
+            <Button
+              title="Load Scenario"
+              onPress={() => {
+                fetchScenarios();
+                setShowScenariosModal(true);
+              }}
+              color="#009900"
+            />
+          </View>
+        </View>
+
+        {/* --- Pop-up window for generating data set --- */}
         {dataGenerationModal.renderModal()}
 
-        {/* --- Pop-up window for adding a single bar (now via hook) --- */}
+        {/* --- Pop-up window for adding a single bar --- */}
         {barGenerationModal.renderModal()}
+
+        {/* --- Scenarios Management Modal --- */}
+        <Modal
+          visible={showScenariosModal}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowScenariosModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Manage Scenarios</Text>
+
+              {/* Save Scenario Section */}
+              <View style={styles.saveScenarioSection}>
+                <Text style={styles.sectionTitle}>Save Current Scenario</Text>
+                <TextInput
+                  style={styles.scenarioInput}
+                  placeholder="Enter scenario name..."
+                  value={scenarioName}
+                  onChangeText={setScenarioName}
+                  editable={!isSavingScenario}
+                />
+                <Button
+                  title={isSavingScenario ? "Saving..." : "Save Scenario"}
+                  onPress={saveScenario}
+                  disabled={isSavingScenario}
+                  color="#0066cc"
+                />
+              </View>
+
+              {/* Load Scenario Section */}
+              <View style={styles.loadScenarioSection}>
+                <Text style={styles.sectionTitle}>Load Saved Scenario</Text>
+                {isLoadingScenarios ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#0066cc" />
+                    <Text>Loading scenarios...</Text>
+                  </View>
+                ) : scenarios.length > 0 ? (
+                  <FlatList
+                    data={scenarios}
+                    keyExtractor={(item) => item._id}
+                    renderItem={({ item }) => (
+                      <View style={styles.scenarioItem}>
+                        <View style={styles.scenarioInfo}>
+                          <Text style={styles.scenarioItemName}>
+                            {item.name}
+                          </Text>
+                          <Text style={styles.scenarioItemDetails}>
+                            {item.data.length} batteries | Created:{" "}
+                            {new Date(item.createdAt).toLocaleDateString()}
+                          </Text>
+                        </View>
+                        <View style={styles.scenarioActions}>
+                          <TouchableOpacity
+                            onPress={() => loadScenario(item._id)}
+                            style={styles.loadButton}
+                          >
+                            <Text style={styles.buttonText}>Load</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => deleteScenario(item._id)}
+                            style={styles.deleteButton}
+                          >
+                            <Text style={styles.buttonText}>Delete</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
+                    scrollEnabled={true}
+                    style={styles.scenariosList}
+                  />
+                ) : (
+                  <Text style={styles.noScenariosText}>
+                    No scenarios saved yet
+                  </Text>
+                )}
+              </View>
+
+              <TouchableOpacity
+                onPress={() => setShowScenariosModal(false)}
+                style={styles.closeButton}
+              >
+                <Text style={styles.closeButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
     </GestureHandlerRootView>
   );
@@ -747,6 +974,130 @@ const styles = StyleSheet.create({
   brandButtonText: {
     fontSize: 14,
     fontWeight: "bold",
+  },
+  // Database/Scenarios styles
+  databaseButtonContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    width: "90%",
+    marginTop: 15,
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "white",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: "90%",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 10,
+    color: "#333",
+  },
+  saveScenarioSection: {
+    marginBottom: 20,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  scenarioInput: {
+    height: 40,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    marginBottom: 10,
+    fontSize: 14,
+  },
+  loadScenarioSection: {
+    maxHeight: 300,
+    marginBottom: 20,
+  },
+  scenariosList: {
+    maxHeight: 250,
+  },
+  scenarioItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+    backgroundColor: "#f9f9f9",
+    marginBottom: 8,
+    borderRadius: 8,
+  },
+  scenarioInfo: {
+    flex: 1,
+  },
+  scenarioItemName: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#333",
+  },
+  scenarioItemDetails: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 4,
+  },
+  scenarioActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  loadButton: {
+    backgroundColor: "#009900",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  deleteButton: {
+    backgroundColor: "#cc0000",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  buttonText: {
+    color: "white",
+    fontWeight: "bold",
+    fontSize: 12,
+  },
+  loadingContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 20,
+  },
+  noScenariosText: {
+    textAlign: "center",
+    color: "#999",
+    fontSize: 14,
+    paddingVertical: 20,
+  },
+  closeButton: {
+    backgroundColor: "#666",
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 10,
+  },
+  closeButtonText: {
+    color: "white",
+    fontWeight: "bold",
+    fontSize: 14,
   },
 });
 

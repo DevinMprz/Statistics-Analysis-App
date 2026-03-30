@@ -30,7 +30,12 @@ import Animated, {
 } from "react-native-reanimated";
 import Svg, { Rect, Circle, Line, G, Text as SvgText } from "react-native-svg";
 import initialBatteryData from "../../data/batteryScenario_set.json";
-import BatteryBar from "./minitool_one_components/BatteryBar";
+import BatteryBar from "./chart_components/BatteryBar";
+import useValueTool from "./tools/ValueTool";
+import useRangeTool from "./tools/RangeTool";
+import useChartControls from "./controls/ChartControls";
+import useDataGenerationModal from "./modals/DataGenerationModal";
+import useBarGenerationModal from "./modals/BarGenerationModal";
 
 const AnimatedG = Animated.createAnimatedComponent(G);
 const AnimatedRect = Animated.createAnimatedComponent(Rect);
@@ -58,12 +63,14 @@ const MOBILE_VALUE_STEP = 26;
 const WEB_VALUE_STEP = 14;
 const PADDING = 0;
 const Y_AXIS_WIDTH = 30;
-const BAR_HEIGHT = 8;
-const BAR_SPACING = 7;
+const BAR_HEIGHT = 6;
+const BAR_SPACING = 4;
 const X_AXIS_HEIGHT = 20;
 const TOOL_LABEL_OFFSET_Y = 25;
 const RANGE_LABEL_OFFSET_Y = 15;
 const TOP_BUFFER = RANGE_LABEL_OFFSET_Y + 10;
+
+const SIDEBAR_WIDTH = 120;
 
 const { width, height } = Dimensions.get("window");
 
@@ -71,328 +78,152 @@ const Minitool_1 = () => {
   const [currentBatteryData, setCurrentBatteryData] =
     useState(initialBatteryData);
   const [displayedData, setDisplayedData] = useState(initialBatteryData);
-  const [isSortedBySize, setIsSortedBySize] = useState(false);
-  const [isSortedByColor, setIsSortedByColor] = useState(false);
   const [toolValue, setToolValue] = useState(80.0);
   const [rangeCount, setRangeCount] = useState(0);
 
-  const [valueToolActive, setValueToolActive] = useState(false);
-  const [rangeToolActive, setRangeToolActive] = useState(false);
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [minLifespanInput, setMinLifespanInput] = useState("40");
-  const [maxLifespanInput, setMaxLifespanInput] = useState("120");
-  const [toughCellCountInput, setToughCellCountInput] = useState("10");
-  const [alwaysReadyCountInput, setAlwaysReadyCountInput] = useState("10");
-  const [isAddBarModalVisible, setIsAddBarModalVisible] = useState(false);
-  const [newBarLifespan, setNewBarLifespan] = useState("100");
-  const [newBarBrand, setNewBarBrand] = useState("Tough Cell");
   const [isHelpVisible, setIsHelpVisible] = useState(false);
 
-  const chartHeight = 20 * (BAR_HEIGHT + BAR_SPACING);
+  // --- Chart Controls Hook (extracted to useChartControls hook) ---
+  const chartControls = useChartControls();
+
+  // --- Calculate stats for displayed data ---
+  const visibleBars = displayedData.filter((item) => item.visible);
+  const minLifespan =
+    visibleBars.length > 0
+      ? Math.min(...visibleBars.map((item) => item.lifespan))
+      : 0;
+  const maxLifespan =
+    visibleBars.length > 0
+      ? Math.max(...visibleBars.map((item) => item.lifespan))
+      : 0;
+  const barCount = 20;
+
+  const chartHeight = Math.max(10, barCount * (BAR_HEIGHT + 2 * BAR_SPACING));
+  console.log("Chart Height:", chartHeight);
   const SVG_HEIGHT = chartHeight + X_AXIS_HEIGHT + TOP_BUFFER;
-  const SVG_WIDTH = width - PADDING * 2;
+  const SVG_WIDTH = width - PADDING * 2 - SIDEBAR_WIDTH;
   const chartWidth =
     SVG_WIDTH - Y_AXIS_WIDTH > 0 ? SVG_WIDTH - Y_AXIS_WIDTH : 1;
 
-  // --- Value Tool Gesture Logic ---
+  // --- Initial values for tools ---
   const initialTranslateX = (80.0 / MAX_LIFESPAN) * chartWidth;
-  const translateX = useSharedValue(initialTranslateX);
-  const context = useSharedValue({ x: 0 });
-  const panGesture = Gesture.Pan()
-    .onStart(() => {
-      context.value = { x: translateX.value };
-    })
-    .onUpdate((event) => {
-      translateX.value = clamp(
-        event.translationX + context.value.x,
-        0,
-        chartWidth
-      );
-    });
-
-  // --- Range Tool Gesture Logic ---
   const initialRangeStartX = (102 / MAX_LIFESPAN) * chartWidth;
   const initialRangeEndX = (126 / MAX_LIFESPAN) * chartWidth;
-  const rangeStartX = useSharedValue(initialRangeStartX);
-  const rangeEndX = useSharedValue(initialRangeEndX);
-  const rangeContext = useSharedValue({ start: 0, end: 0 });
 
-  const movePanGesture = Gesture.Pan()
-    .onStart(() => {
-      rangeContext.value = { start: rangeStartX.value, end: rangeEndX.value };
-    })
-    .onUpdate((event) => {
-      const rangeWidth = rangeContext.value.end - rangeContext.value.start;
-      const newStart = clamp(
-        rangeContext.value.start + event.translationX,
-        0,
-        chartWidth - rangeWidth
-      );
-      rangeStartX.value = newStart;
-      rangeEndX.value = newStart + rangeWidth;
-    });
-
-  const leftHandlePanGesture = Gesture.Pan()
-    .onStart(() => {
-      rangeContext.value = { start: rangeStartX.value, end: rangeEndX.value };
-    })
-    .onUpdate((event) => {
-      rangeStartX.value = clamp(
-        rangeContext.value.start + event.translationX,
-        0,
-        rangeEndX.value - RANGE_HANDLE_SIZE
-      );
-    });
-
-  const rightHandlePanGesture = Gesture.Pan()
-    .onStart(() => {
-      rangeContext.value = { start: rangeStartX.value, end: rangeEndX.value };
-    })
-    .onUpdate((event) => {
-      rangeEndX.value = clamp(
-        rangeContext.value.end + event.translationX,
-        rangeStartX.value + RANGE_HANDLE_SIZE,
-        chartWidth
-      );
-    });
-
-  // --- Animated Props for lines of the tools ---
-  const animatedToolProps = useAnimatedProps(() => ({
-    x: translateX.value - 7.5,
-  }));
-  const animatedValueLineProps = useAnimatedProps(() => ({
-    x1: translateX.value,
-    x2: translateX.value,
-  }));
-  const animatedRangeRectProps = useAnimatedProps(() => ({
-    x: rangeStartX.value,
-    width: rangeEndX.value - rangeStartX.value,
-  }));
-  const animatedRangeLeftLineProps = useAnimatedProps(() => ({
-    x1: rangeStartX.value,
-    x2: rangeStartX.value,
-  }));
-  const animatedRangeRightLineProps = useAnimatedProps(() => ({
-    x1: rangeEndX.value,
-    x2: rangeEndX.value,
-  }));
-  const animatedLeftHandleProps = useAnimatedProps(() => ({
-    x: rangeStartX.value - RANGE_HANDLE_SIZE / 2,
-  }));
-  const animatedRightHandleProps = useAnimatedProps(() => ({
-    x: rangeEndX.value - RANGE_HANDLE_SIZE / 2,
-  }));
-  const animatedMoveHandleProps = useAnimatedProps(() => ({
-    x: rangeStartX.value,
-    width: Math.abs(rangeStartX.value - rangeEndX.value),
-  }));
-
-  // --- Animations for the labels ---
-  const animatedLabelStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
-    opacity: withTiming(valueToolActive ? 1 : 0),
-  }));
-
-  const animatedRangeLabelStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: (rangeStartX.value + rangeEndX.value) / 2 }],
-    opacity: withTiming(rangeToolActive ? 1 : 0),
-  }));
-
-  // --- Animations for disappearing and appearing tools ---
-  const valueToolContainerAnimatedProps = useAnimatedProps(() => {
-    return { opacity: withTiming(valueToolActive ? 1 : 0) };
+  // --- Value Tool Gesture Logic (extracted to useValueTool hook) ---
+  const valueTool = useValueTool({
+    isActive: chartControls.valueToolActive,
+    onActiveChange: chartControls.setValueToolActive,
+    onValueChange: setToolValue,
+    chartWidth,
+    chartHeight,
+    maxLifespan: MAX_LIFESPAN,
+    toolValue,
+    toolColor: TOOL_COLOR,
+    X_AXIS_HEIGHT: X_AXIS_HEIGHT,
   });
 
-  const rangeToolContainerAnimatedProps = useAnimatedProps(() => {
-    return { opacity: withTiming(rangeToolActive ? 1 : 0) };
+  // --- Range Tool Gesture Logic (extracted to useRangeTool hook) ---
+  const rangeTool = useRangeTool({
+    isActive: chartControls.rangeToolActive,
+    onActiveChange: chartControls.setRangeToolActive,
+    onCountChange: setRangeCount,
+    chartWidth,
+    chartHeight,
+    maxLifespan: MAX_LIFESPAN,
+    initialStartValue: 102,
+    initialEndValue: 126,
+    rangeHandleSize: RANGE_HANDLE_SIZE,
+    rangeToolColor: RANGE_TOOL_COLOR,
+    displayedData,
+    X_AXIS_HEIGHT: X_AXIS_HEIGHT,
   });
+
+  // --- Data Generation Modal Hook (initialized after tools) ---
+  const dataGenerationModal = useDataGenerationModal({
+    onDataGenerated: (data) => {
+      setCurrentBatteryData(data);
+      chartControls.setIsSortedByColor(false);
+      chartControls.setIsSortedBySize(false);
+    },
+    onClose: () => {
+      valueTool.translateX.value = initialTranslateX;
+      rangeTool.rangeStartX.value = initialRangeStartX;
+      rangeTool.rangeEndX.value = initialRangeEndX;
+    },
+  });
+
+  // --- Bar Generation Modal Hook ---
+  const barGenerationModal = useBarGenerationModal({
+    onBarAdded: (newBar) => {
+      setCurrentBatteryData([...currentBatteryData, newBar]);
+    },
+    onClose: () => {
+      valueTool.translateX.value = initialTranslateX;
+      rangeTool.rangeStartX.value = initialRangeStartX;
+      rangeTool.rangeEndX.value = initialRangeEndX;
+    },
+    currentBarCount: currentBatteryData.length,
+    MAX_BAR_COUNT: MAX_BAR_COUNT,
+  });
+
+  // --- Animated Props for lines of the tools (range tool moved to RangeTool component) ---
+
+  // --- Animations for the labels (moved to RangeTool component) ---
 
   // --- Function to handle value tool ---
   useAnimatedReaction(
-    () => translateX.value,
-    (currentValue) =>
-      runOnJS(setToolValue)((currentValue / chartWidth) * MAX_LIFESPAN),
+    () => valueTool.translateX.value,
+    () => {
+      // Value update is handled inside ValueTool component
+    },
     [chartWidth]
   );
-  // --- Function to handle range tool ---
-  useAnimatedReaction(
-    () => ({ start: rangeStartX.value, end: rangeEndX.value }),
-    (currentRange, previousRange) => {
-      if (
-        currentRange.start !== previousRange?.start ||
-        currentRange.end !== previousRange?.end
-      ) {
-        const minLifespan = (currentRange.start / chartWidth) * MAX_LIFESPAN;
-        const maxLifespan = (currentRange.end / chartWidth) * MAX_LIFESPAN;
-        const count = displayedData.filter(
-          (item) => item.lifespan >= minLifespan && item.lifespan <= maxLifespan
-        ).length;
-        runOnJS(setRangeCount)(count);
-      }
-    },
-    [chartWidth, displayedData]
-  );
+  // --- Function to handle range tool (moved to RangeTool component) ---
 
-  // --- Sorting handlers ---
+  // --- Sorting and filtering handlers ---
   useEffect(() => {
     let dataToDisplay = [...currentBatteryData];
-    if (isSortedBySize) {
+
+    // Apply sorting
+    if (chartControls.isSortedBySize) {
       dataToDisplay.sort((a, b) => a.lifespan - b.lifespan);
-    } else if (isSortedByColor) {
+    } else if (chartControls.isSortedByColor) {
       dataToDisplay.sort((a, b) => a.brand.localeCompare(b.brand));
     }
+
+    // Mark which items should be visible (keep them in array with visibility flag)
+    dataToDisplay = dataToDisplay.map((item) => ({
+      ...item,
+      visible:
+        !(chartControls.hideGreenBars && item.brand === "Tough Cell") &&
+        !(chartControls.hidePurpleBars && item.brand === "Always Ready"),
+    }));
+
     setDisplayedData(dataToDisplay);
-  }, [currentBatteryData, isSortedBySize, isSortedByColor]);
-
-  const handleSortBySize = (isActive) => {
-    setIsSortedBySize(isActive);
-    if (isActive) {
-      setIsSortedByColor(false);
-    }
-  };
-
-  const handleSortByColor = (isActive) => {
-    setIsSortedByColor(isActive);
-    if (isActive) {
-      setIsSortedBySize(false);
-    }
-  };
-
-  // --- Simplified toggle handlers ---
-  const handleValueTool = (isActive) => {
-    setValueToolActive(isActive);
-  };
-  const handleRangeTool = (isActive) => {
-    setRangeToolActive(isActive);
-  };
+  }, [
+    currentBatteryData,
+    chartControls.isSortedBySize,
+    chartControls.isSortedByColor,
+    chartControls.hideGreenBars,
+    chartControls.hidePurpleBars,
+  ]);
 
   // --- Handlers for Modal(Pop up window which allows to generate random data) ---
-  const handleGenerateDataButton = () => {
-    setRangeToolActive(false);
-    setValueToolActive(false);
-    setIsModalVisible(true);
-  };
-
-  const handleGenerateData = () => {
-    translateX.value = initialTranslateX;
-    rangeStartX.value = initialRangeStartX;
-    rangeEndX.value = initialRangeEndX;
-    const min = parseInt(minLifespanInput, 10);
-    const max = parseInt(maxLifespanInput, 10);
-    const toughCellCount = parseInt(toughCellCountInput, 10);
-    const alwaysReadyCount = parseInt(alwaysReadyCountInput, 10);
-
-    if (
-      isNaN(min) ||
-      isNaN(max) ||
-      isNaN(toughCellCount) ||
-      isNaN(alwaysReadyCount) ||
-      min >= max ||
-      min < 0 ||
-      toughCellCount < 0 ||
-      alwaysReadyCount < 0 ||
-      max > MAX_LIFESPAN
-    ) {
-      if (Platform.OS === "web") {
-        alert(
-          `Invalid Input. Please check your values. Min Lifespan must be less than Max Lifespan, Max Lifespan must be less than ${MAX_LIFESPAN} `
-        );
-      } else {
-        Alert.alert(
-          "Invalid Input",
-          `Please check your values. Min Lifespan must be less than Max Lifespan, Max Lifespan must be less than ${MAX_LIFESPAN}`
-        );
-      }
-      return;
-    }
-    if (
-      toughCellCount < MIN_BATTERY_COUNT_VALUE ||
-      toughCellCount > MAX_BATTERY_COUNT_VALUE
-    ) {
-      if (Platform.OS === "web") {
-        alert(
-          `Invalid Input. Please check your values. The number of batteries of the company ToughCell must be greater than 0 and less than ${MAX_BATTERY_COUNT_VALUE}`
-        );
-      } else {
-        Alert.alert(
-          "Invalid Input",
-          `Please check your values. The number of batteries of the company ToughCell must be greater than 0 and less than ${MAX_BATTERY_COUNT_VALUE}`
-        );
-      }
-      return;
-    }
-
-    if (
-      alwaysReadyCount < MIN_BATTERY_COUNT_VALUE ||
-      alwaysReadyCount > MAX_BATTERY_COUNT_VALUE
-    ) {
-      if (Platform.OS == "web") {
-        alert(
-          `Invalid Input. Please check your values. The number of batteries of the company AlwaysReady must be greater than 0 and less than ${MAX_BATTERY_COUNT_VALUE}`
-        );
-      } else {
-        Alert.alert(
-          "Invalid Input",
-          `Please check your values. The number of batteries of the company AlwaysReady must be greater than 0 and less than ${MAX_BATTERY_COUNT_VALUE}`
-        );
-      }
-      return;
-    }
-
-    const newData = [];
-    const getRandomLifespan = (min, max) =>
-      Math.floor(Math.random() * (max - min + 1)) + min;
-
-    for (let i = 0; i < toughCellCount; i++) {
-      newData.push({
-        brand: "Tough Cell",
-        lifespan: getRandomLifespan(min, max),
-      });
-    }
-    for (let i = 0; i < alwaysReadyCount; i++) {
-      newData.push({
-        brand: "Always Ready",
-        lifespan: getRandomLifespan(min, max),
-      });
-    }
-
-    setCurrentBatteryData(newData);
-    setIsSortedByColor(false);
-    setIsSortedBySize(false);
-    setIsModalVisible(false);
-  };
-
-  const handleCancelbutton = () => {
-    translateX.value = initialTranslateX;
-    rangeStartX.value = initialRangeStartX;
-    rangeEndX.value = initialRangeEndX;
-    setIsModalVisible(false);
-  };
+  // Now handled by useDataGenerationModal hook - open via dataGenerationModal.handleOpenModal()
 
   // --- Reset data to the initial one(which was diaplayed first) ---
   const handleResetData = () => {
     setCurrentBatteryData(initialBatteryData);
-    setIsSortedByColor(false);
-    setIsSortedBySize(false);
+    chartControls.setIsSortedByColor(false);
+    chartControls.setIsSortedBySize(false);
   };
 
   // --- Handlers for Adding/Removing single bars ---
   const handleAddBarButtonPress = () => {
-    translateX.value = initialTranslateX;
-    rangeStartX.value = initialRangeStartX;
-    rangeEndX.value = initialRangeEndX;
-    setRangeToolActive(false);
-    setValueToolActive(false);
-    if (currentBatteryData.length >= MAX_BAR_COUNT) {
-      Alert.alert(
-        "Limit Reached",
-        `You cannot add more than ${MAX_BAR_COUNT} batteries.`
-      );
-      return;
-    }
-    setNewBarLifespan("100");
-    setNewBarBrand("Tough Cell");
-    setIsAddBarModalVisible(true);
+    chartControls.setRangeToolActive(false);
+    chartControls.setValueToolActive(false);
+    barGenerationModal.handleOpenModal();
   };
 
   const handleRemoveLastBar = () => {
@@ -404,28 +235,7 @@ const Minitool_1 = () => {
     setCurrentBatteryData(newData);
   };
 
-  const handleConfirmAddBar = () => {
-    const lifespan = parseInt(newBarLifespan, 10);
-    if (isNaN(lifespan) || lifespan < MIN_LIFESPAN || lifespan > MAX_LIFESPAN) {
-      Alert.alert(
-        "Invalid Lifespan",
-        `Please enter a number between ${MIN_LIFESPAN} and ${MAX_LIFESPAN}.`
-      );
-      return;
-    }
-
-    const newBar = {
-      brand: newBarBrand,
-      lifespan: lifespan,
-    };
-
-    setCurrentBatteryData([...currentBatteryData, newBar]);
-    setIsAddBarModalVisible(false);
-  };
-
-  const handleCancelAddBar = () => {
-    setIsAddBarModalVisible(false);
-  };
+  // Handlers for add bar modal are now in useBarGenerationModal hook
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -514,328 +324,177 @@ const Minitool_1 = () => {
           )}
         </View>
 
-        {/* --- Sorting controllers --- */}
-        <View style={styles.controlsContainer}>
-          <View style={styles.switchControl}>
-            <Text>Sort by Color</Text>
-            <Switch value={isSortedByColor} onValueChange={handleSortByColor} />
-          </View>
-          <View style={styles.switchControl}>
-            <Text>Sort by Size</Text>
-            <Switch value={isSortedBySize} onValueChange={handleSortBySize} />
-          </View>
-        </View>
-
         {/* Bar chart with tools*/}
-        {!isModalVisible && !isAddBarModalVisible && (
-          <View style={[styles.chartContainer, { height: SVG_HEIGHT }]}>
-            {/* --- Render the label of value tool --- */}
-            <Animated.View
-              style={[
-                styles.toolLabelContainer,
-                { left: Y_AXIS_WIDTH, top: TOP_BUFFER },
-                animatedLabelStyle,
-              ]}
+        {!dataGenerationModal.isModalVisible &&
+          !barGenerationModal.isModalVisible && (
+            <View
+              style={{
+                flexDirection: "row",
+                width: "100%",
+                maxHeight: 600,
+                marginTop: 20,
+              }}
             >
-              <Text style={styles.toolLabelText}>{toolValue.toFixed(1)}</Text>
-            </Animated.View>
+              <ScrollView
+                horizontal={false}
+                scrollEnabled={SVG_HEIGHT > 500}
+                style={[styles.chartContainer, { flex: 1 }]}
+              >
+                <View>
+                  {/* --- Render the label of value tool --- */}
+                  <Animated.View
+                    style={[
+                      styles.toolLabelContainer,
+                      { left: Y_AXIS_WIDTH, top: TOP_BUFFER },
+                      valueTool.animatedLabelStyle,
+                    ]}
+                  >
+                    <Text style={styles.toolLabelText}>
+                      {toolValue.toFixed(1)}
+                    </Text>
+                  </Animated.View>
 
-            {/* --- Render the label of range tool --- */}
-            <Animated.View
-              style={[styles.rangeLabelContainer, animatedRangeLabelStyle]}
-            >
-              <Text style={styles.rangeLabelText}>count: {rangeCount}</Text>
-            </Animated.View>
+                  {/* --- Render the label of range tool --- */}
+                  <Animated.View
+                    style={[
+                      styles.rangeLabelContainer,
+                      rangeTool.animatedRangeLabelStyle,
+                    ]}
+                  >
+                    <Text style={styles.rangeLabelText}>
+                      count: {rangeCount}
+                    </Text>
+                  </Animated.View>
 
-            {/* --- Whole bar chart */}
-            <Svg
-              width={SVG_WIDTH - Y_AXIS_WIDTH}
-              height={SVG_HEIGHT}
-              style={{ zIndex: 1 }}
-            >
-              <G x={Y_AXIS_WIDTH} y={TOP_BUFFER}>
-                {/* X-Axis */}
-                <Line
-                  x1="0"
-                  y1={chartHeight}
-                  x2={chartWidth}
-                  y2={chartHeight}
-                  stroke={AXIS_COLOR}
-                  strokeWidth="1"
-                />
-                {Array.from({
-                  length: PLATFORM === "web" ? WEB_TICKS : MOBILE_TICKS,
-                }).map((_, i) => {
-                  const val =
-                    i *
-                    (PLATFORM === "web" ? WEB_VALUE_STEP : MOBILE_VALUE_STEP);
-                  const xPos = (val / MAX_LIFESPAN) * chartWidth;
-                  return (
-                    <SvgText
-                      key={`label-${i}`}
-                      x={xPos}
-                      y={chartHeight + 15}
-                      fill={AXIS_COLOR}
-                      fontSize="12"
-                      textAnchor="middle"
-                    >
-                      {val}
-                    </SvgText>
-                  );
-                })}
-
-                {/* Data Bars */}
-                {displayedData.map((item, index) => (
-                  <BatteryBar
-                    key={`bar-${index}-${item.lifespan}`}
-                    item={item}
-                    index={index}
-                    chartWidth={chartWidth}
-                    rangeStartX={rangeStartX}
-                    rangeEndX={rangeEndX}
-                    tool={rangeToolActive}
-                  />
-                ))}
-
-                {/* --- Range tool (3 Line, 3 ractangles ) --- */}
-                <AnimatedG animatedProps={rangeToolContainerAnimatedProps}>
-                  <AnimatedRect
-                    y="0"
-                    height={chartHeight}
-                    fill={RANGE_TOOL_COLOR}
-                    opacity="0.2"
-                    animatedProps={animatedRangeRectProps}
-                  />
-                  <AnimatedLine
-                    y1="0"
-                    y2={chartHeight}
-                    stroke={RANGE_TOOL_COLOR}
-                    strokeWidth="2"
-                    animatedProps={animatedRangeLeftLineProps}
-                  />
-                  <AnimatedLine
-                    y1="0"
-                    y2={chartHeight}
-                    stroke={RANGE_TOOL_COLOR}
-                    strokeWidth="2"
-                    animatedProps={animatedRangeRightLineProps}
-                  />
-
-                  {/* --- Rectangles - gesture handlers --- */}
-                  {Platform.OS === 'web' && rangeToolActive ? (
-                    <>
-                      <AnimatedRect
-                        y={chartHeight}
-                        width={RANGE_HANDLE_SIZE}
-                        height={RANGE_HANDLE_SIZE}
-                        fill={RANGE_TOOL_COLOR}
-                        animatedProps={animatedLeftHandleProps}
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          const startX = e.nativeEvent.pageX;
-                          const initialStart = rangeStartX.value;
-                          
-                          const handleMouseMove = (moveEvent) => {
-                            const deltaX = moveEvent.pageX - startX;
-                            rangeStartX.value = clamp(
-                              initialStart + deltaX,
-                              0,
-                              rangeEndX.value - RANGE_HANDLE_SIZE
-                            );
-                          };
-                          
-                          const handleMouseUp = () => {
-                            document.removeEventListener('mousemove', handleMouseMove);
-                            document.removeEventListener('mouseup', handleMouseUp);
-                          };
-                          
-                          document.addEventListener('mousemove', handleMouseMove);
-                          document.addEventListener('mouseup', handleMouseUp);
-                        }}
+                  {/* --- Whole bar chart --- */}
+                  <Svg
+                    width={SVG_WIDTH - Y_AXIS_WIDTH}
+                    height={SVG_HEIGHT + X_AXIS_HEIGHT}
+                    style={{ zIndex: 1 }}
+                  >
+                    <G x={Y_AXIS_WIDTH} y={TOP_BUFFER}>
+                      {/* X-Axis */}
+                      <Line
+                        x1="0"
+                        y1={chartHeight + X_AXIS_HEIGHT}
+                        x2={chartWidth}
+                        y2={chartHeight + X_AXIS_HEIGHT}
+                        stroke={AXIS_COLOR}
+                        strokeWidth="1"
                       />
-                      <AnimatedRect
-                        y={chartHeight}
-                        width={RANGE_HANDLE_SIZE}
-                        height={RANGE_HANDLE_SIZE}
-                        fill={RANGE_TOOL_COLOR}
-                        animatedProps={animatedRightHandleProps}
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          const startX = e.nativeEvent.pageX;
-                          const initialEnd = rangeEndX.value;
-                          
-                          const handleMouseMove = (moveEvent) => {
-                            const deltaX = moveEvent.pageX - startX;
-                            rangeEndX.value = clamp(
-                              initialEnd + deltaX,
-                              rangeStartX.value + RANGE_HANDLE_SIZE,
-                              chartWidth
-                            );
-                          };
-                          
-                          const handleMouseUp = () => {
-                            document.removeEventListener('mousemove', handleMouseMove);
-                            document.removeEventListener('mouseup', handleMouseUp);
-                          };
-                          
-                          document.addEventListener('mousemove', handleMouseMove);
-                          document.addEventListener('mouseup', handleMouseUp);
-                        }}
-                      />
-                      <AnimatedRect
-                        y="0"
-                        height={chartHeight}
-                        fill="transparent"
-                        animatedProps={animatedMoveHandleProps}
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          const startX = e.nativeEvent.pageX;
-                          const initialStart = rangeStartX.value;
-                          const initialEnd = rangeEndX.value;
-                          const rangeWidth = initialEnd - initialStart;
-                          
-                          const handleMouseMove = (moveEvent) => {
-                            const deltaX = moveEvent.pageX - startX;
-                            const newStart = clamp(
-                              initialStart + deltaX,
-                              0,
-                              chartWidth - rangeWidth
-                            );
-                            rangeStartX.value = newStart;
-                            rangeEndX.value = newStart + rangeWidth;
-                          };
-                          
-                          const handleMouseUp = () => {
-                            document.removeEventListener('mousemove', handleMouseMove);
-                            document.removeEventListener('mouseup', handleMouseUp);
-                          };
-                          
-                          document.addEventListener('mousemove', handleMouseMove);
-                          document.addEventListener('mouseup', handleMouseUp);
-                        }}
-                      />
-                    </>
-                  ) : (
-                    <>
-                      <GestureDetector
-                        gesture={leftHandlePanGesture}
-                        enabled={rangeToolActive}
-                      >
-                        <AnimatedRect
-                          y={chartHeight}
-                          width={RANGE_HANDLE_SIZE}
-                          height={RANGE_HANDLE_SIZE}
-                          fill={RANGE_TOOL_COLOR}
-                          animatedProps={animatedLeftHandleProps}
-                        />
-                      </GestureDetector>
-                      <GestureDetector
-                        gesture={rightHandlePanGesture}
-                        enabled={rangeToolActive}
-                      >
-                        <AnimatedRect
-                          y={chartHeight}
-                          width={RANGE_HANDLE_SIZE}
-                          height={RANGE_HANDLE_SIZE}
-                          fill={RANGE_TOOL_COLOR}
-                          animatedProps={animatedRightHandleProps}
-                        />
-                      </GestureDetector>
-                      <GestureDetector
-                        gesture={movePanGesture}
-                        enabled={rangeToolActive}
-                      >
-                        <AnimatedRect
-                          y="0"
-                          height={chartHeight}
-                          fill="transparent"
-                          animatedProps={animatedMoveHandleProps}
-                        />
-                      </GestureDetector>
-                    </>
-                  )}
-                </AnimatedG>
+                      {Array.from({
+                        length: PLATFORM === "web" ? WEB_TICKS : MOBILE_TICKS,
+                      }).map((_, i) => {
+                        const val =
+                          i *
+                          (PLATFORM === "web"
+                            ? WEB_VALUE_STEP
+                            : MOBILE_VALUE_STEP);
+                        const xPos = (val / MAX_LIFESPAN) * chartWidth;
+                        return (
+                          <SvgText
+                            key={`label-${i}`}
+                            x={xPos}
+                            y={chartHeight + X_AXIS_HEIGHT + 15}
+                            fill={AXIS_COLOR}
+                            fontSize="12"
+                            textAnchor="middle"
+                          >
+                            {val}
+                          </SvgText>
+                        );
+                      })}
 
-                {/* --- Value tool(1 line, 1 rectangle) --- */}
-                <AnimatedG animatedProps={valueToolContainerAnimatedProps}>
-                  <AnimatedLine
-                    y1={-5}
-                    y2={chartHeight}
-                    stroke={TOOL_COLOR}
-                    strokeWidth="2"
-                    animatedProps={animatedValueLineProps}
-                  />
-                  {Platform.OS === 'web' && valueToolActive ? (
-                    <AnimatedRect
-                      y={chartHeight}
-                      height="15"
-                      width="15"
-                      fill={TOOL_COLOR}
-                      animatedProps={animatedToolProps}
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        const startX = e.nativeEvent.pageX;
-                        const initialTranslate = translateX.value;
-                        
-                        const handleMouseMove = (moveEvent) => {
-                          const deltaX = moveEvent.pageX - startX;
-                          translateX.value = clamp(
-                            initialTranslate + deltaX,
-                            0,
-                            chartWidth
-                          );
-                        };
-                        
-                        const handleMouseUp = () => {
-                          document.removeEventListener('mousemove', handleMouseMove);
-                          document.removeEventListener('mouseup', handleMouseUp);
-                        };
-                        
-                        document.addEventListener('mousemove', handleMouseMove);
-                        document.addEventListener('mouseup', handleMouseUp);
-                      }}
+                      {/* Data Bars */}
+                      {displayedData.map(
+                        (item, index) =>
+                          item.visible && (
+                            <BatteryBar
+                              key={`bar-${index}-${item.lifespan}`}
+                              item={item}
+                              index={index}
+                              chartWidth={chartWidth}
+                              rangeStartX={rangeTool.rangeStartX}
+                              rangeEndX={rangeTool.rangeEndX}
+                              tool={chartControls.rangeToolActive}
+                              dotsOnly={chartControls.showDotsOnly}
+                              maxLifespan={MAX_LIFESPAN}
+                            />
+                          )
+                      )}
+
+                      {/* --- Range tool (3 Line, 3 rectangles) - rendered by RangeTool hook --- */}
+                      {rangeTool.renderRangeTool()}
+
+                      {/* --- Value tool(1 line, 1 rectangle) - rendered by ValueTool hook --- */}
+                      {valueTool.renderValueTool()}
+                    </G>
+                    {/* Y-Axis */}
+                    <Line
+                      x1={Y_AXIS_WIDTH}
+                      y1={TOP_BUFFER}
+                      x2={Y_AXIS_WIDTH}
+                      y2={chartHeight + X_AXIS_HEIGHT + TOP_BUFFER}
+                      stroke={AXIS_COLOR}
+                      strokeWidth="1"
                     />
-                  ) : (
-                    <GestureDetector
-                      gesture={panGesture}
-                      enabled={valueToolActive}
-                    >
-                      <AnimatedRect
-                        y={chartHeight}
-                        height="15"
-                        width="15"
-                        fill={TOOL_COLOR}
-                        animatedProps={animatedToolProps}
-                      />
-                    </GestureDetector>
-                  )}
-                </AnimatedG>
-              </G>
-              {/* Y-Axis */}
-              <Line
-                x1={Y_AXIS_WIDTH}
-                y1={TOP_BUFFER}
-                x2={Y_AXIS_WIDTH}
-                y2={chartHeight + TOP_BUFFER}
-                stroke={AXIS_COLOR}
-                strokeWidth="1"
-              />
-            </Svg>
-          </View>
-        )}
+                  </Svg>
+                </View>
+              </ScrollView>
+              {/* --- Stats Sidebar --- */}
+              <View
+                style={{
+                  width: SIDEBAR_WIDTH,
+                  backgroundColor: "#f0f0f0",
+                  padding: 15,
+                  justifyContent: "flex-start",
+                  borderLeftWidth: 1,
+                  borderLeftColor: "#ccc",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: "bold",
+                    marginBottom: 10,
+                  }}
+                >
+                  Min:
+                </Text>
+                <Text style={{ fontSize: 14, marginBottom: 15 }}>
+                  {minLifespan}
+                </Text>
+
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: "bold",
+                    marginBottom: 10,
+                  }}
+                >
+                  Max:
+                </Text>
+                <Text style={{ fontSize: 14, marginBottom: 15 }}>
+                  {maxLifespan}
+                </Text>
+
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: "bold",
+                    marginBottom: 10,
+                  }}
+                >
+                  Amount:
+                </Text>
+                <Text style={{ fontSize: 14 }}>{barCount}</Text>
+              </View>
+            </View>
+          )}
         <Text style={styles.xAxisTitle}>Life Span (hours)</Text>
 
-        {/* --- Toogle controllers --- */}
-        <View style={styles.controlsContainer}>
-          <View style={styles.switchControl}>
-            <Text>Value tool</Text>
-            <Switch value={valueToolActive} onValueChange={handleValueTool} />
-          </View>
-          <View style={styles.switchControl}>
-            <Text>Range tool</Text>
-            <Switch value={rangeToolActive} onValueChange={handleRangeTool} />
-          </View>
-        </View>
+        {/* --- Chart Controls (rendered by useChartControls hook) --- */}
+        {chartControls.renderControls()}
 
         {/* --- Buttons for generating new DATA --- */}
         <View style={styles.bottomButtonContainer}>
@@ -859,131 +518,21 @@ const Minitool_1 = () => {
           <View style={styles.buttonWrapper}>
             <Button
               title="Generate New Data"
-              onPress={handleGenerateDataButton}
+              onPress={() => {
+                chartControls.setRangeToolActive(false);
+                chartControls.setValueToolActive(false);
+                dataGenerationModal.handleOpenModal();
+              }}
               color="#47d147"
             />
           </View>
         </View>
 
-        {/* --- Pop-up window for generating data set --- */}
-        <Modal
-          animationType="slide"
-          transparent={true}
-          visible={isModalVisible}
-          onRequestClose={() => setIsModalVisible(!isModalVisible)}
-        >
-          <View style={styles.modalCenteredView}>
-            <View style={styles.modalView}>
-              <Text style={styles.modalText}>Generate New Data</Text>
-              {/* --- Text inputs --- */}
-              <View style={styles.inputRow}>
-                <Text style={styles.inputLabel}>Min Lifespan:</Text>
-                <TextInput
-                  style={styles.input}
-                  onChangeText={setMinLifespanInput}
-                  value={minLifespanInput}
-                  keyboardType="numeric"
-                />
-              </View>
+        {/* --- Pop-up window for generating data set (now via hook) --- */}
+        {dataGenerationModal.renderModal()}
 
-              <View style={styles.inputRow}>
-                <Text style={styles.inputLabel}>Max Lifespan:</Text>
-                <TextInput
-                  style={styles.input}
-                  onChangeText={setMaxLifespanInput}
-                  value={maxLifespanInput}
-                  keyboardType="numeric"
-                />
-              </View>
-
-              <View style={styles.inputRow}>
-                <Text style={styles.inputLabel}>Tough Cell Count:</Text>
-                <TextInput
-                  style={styles.input}
-                  onChangeText={setToughCellCountInput}
-                  value={toughCellCountInput}
-                  keyboardType="numeric"
-                />
-              </View>
-
-              <View style={styles.inputRow}>
-                <Text style={styles.inputLabel}>Always Ready Count:</Text>
-                <TextInput
-                  style={styles.input}
-                  onChangeText={setAlwaysReadyCountInput}
-                  value={alwaysReadyCountInput}
-                  keyboardType="numeric"
-                />
-              </View>
-
-              {/* --- Buttons Cancel(cancel generation of data) and Generate(generate new one) */}
-              <View style={styles.modalButtonContainer}>
-                <Button
-                  title="Cancel"
-                  color="gray"
-                  onPress={handleCancelbutton}
-                />
-                <Button title="Generate" onPress={handleGenerateData} />
-              </View>
-            </View>
-          </View>
-        </Modal>
-
-        {/* --- NEW: Pop-up window for adding a single bar --- */}
-        <Modal
-          animationType="slide"
-          transparent={true}
-          visible={isAddBarModalVisible}
-          onRequestClose={() => setIsAddBarModalVisible(false)}
-        >
-          <View style={styles.modalCenteredView}>
-            <View style={styles.modalView}>
-              <Text style={styles.modalText}>Add a New Battery</Text>
-
-              <View style={styles.inputRow}>
-                <Text style={styles.inputLabel}>Lifespan (1-130):</Text>
-                <TextInput
-                  style={styles.input}
-                  onChangeText={setNewBarLifespan}
-                  value={newBarLifespan}
-                  keyboardType="numeric"
-                />
-              </View>
-
-              <Text style={styles.inputLabel}>Brand:</Text>
-              <View style={styles.brandSelectorContainer}>
-                <TouchableOpacity
-                  onPress={() => setNewBarBrand("Tough Cell")}
-                  style={[
-                    styles.brandButton,
-                    newBarBrand === "Tough Cell" && styles.brandButtonSelected,
-                  ]}
-                >
-                  <Text style={styles.brandButtonText}>Tough Cell</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setNewBarBrand("Always Ready")}
-                  style={[
-                    styles.brandButton,
-                    newBarBrand === "Always Ready" &&
-                      styles.brandButtonSelected,
-                  ]}
-                >
-                  <Text style={styles.brandButtonText}>Always Ready</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.modalButtonContainer}>
-                <Button
-                  title="Cancel"
-                  color="gray"
-                  onPress={handleCancelAddBar}
-                />
-                <Button title="Add Bar" onPress={handleConfirmAddBar} />
-              </View>
-            </View>
-          </View>
-        </Modal>
+        {/* --- Pop-up window for adding a single bar (now via hook) --- */}
+        {barGenerationModal.renderModal()}
       </ScrollView>
     </GestureHandlerRootView>
   );
@@ -1069,19 +618,6 @@ const styles = StyleSheet.create({
   helpTextBold: {
     fontWeight: "bold",
     color: "#1f2937",
-  },
-  controlsContainer: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    width: "100%",
-    marginBottom: 10,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: "#e0e0e0",
-  },
-  switchControl: {
-    alignItems: "center",
   },
   chartContainer: {
     width: "100%",

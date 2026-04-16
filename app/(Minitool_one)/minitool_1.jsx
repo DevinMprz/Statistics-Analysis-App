@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   StyleSheet,
   View,
   Text,
-  Switch,
   Platform,
   ScrollView,
   StatusBar,
@@ -13,22 +12,15 @@ import {
   TextInput,
   Alert,
   TouchableOpacity,
+  ActivityIndicator,
+  FlatList,
 } from "react-native";
-import {
-  Gesture,
-  GestureDetector,
-  GestureHandlerRootView,
-} from "react-native-gesture-handler";
-import Animated, {
-  useSharedValue,
-  useAnimatedProps,
-  useAnimatedStyle,
-  useAnimatedReaction,
-  runOnJS,
-  clamp,
-  withTiming,
-} from "react-native-reanimated";
-import Svg, { Rect, Circle, Line, G, Text as SvgText } from "react-native-svg";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import Animated, { useAnimatedReaction } from "react-native-reanimated";
+import { useRouter } from "expo-router";
+import Svg, { Line, G, Text as SvgText } from "react-native-svg";
+import axios from "axios";
+import RNPickerSelect from "react-native-picker-select";
 import initialBatteryData from "../../data/batteryScenario_set.json";
 import BatteryBar from "./chart_components/BatteryBar";
 import useValueTool from "./tools/ValueTool";
@@ -36,10 +28,6 @@ import useRangeTool from "./tools/RangeTool";
 import useChartControls from "./controls/ChartControls";
 import useDataGenerationModal from "./modals/DataGenerationModal";
 import useBarGenerationModal from "./modals/BarGenerationModal";
-
-const AnimatedG = Animated.createAnimatedComponent(G);
-const AnimatedRect = Animated.createAnimatedComponent(Rect);
-const AnimatedLine = Animated.createAnimatedComponent(Line);
 
 // --- Configuration ---
 const MIN_BATTERY_COUNT_VALUE = 1;
@@ -74,6 +62,9 @@ const SIDEBAR_WIDTH = 120;
 
 const { width, height } = Dimensions.get("window");
 
+// API Configuration
+const API_URL = "http://localhost:5000/api/scenarios";
+
 const Minitool_1 = () => {
   const [currentBatteryData, setCurrentBatteryData] =
     useState(initialBatteryData);
@@ -82,6 +73,22 @@ const Minitool_1 = () => {
   const [rangeCount, setRangeCount] = useState(0);
 
   const [isHelpVisible, setIsHelpVisible] = useState(false);
+
+  // Database-related state
+  const [scenarios, setScenarios] = useState([]);
+  const [isLoadingScenarios, setIsLoadingScenarios] = useState(false);
+  const [selectedScenarioId, setSelectedScenarioId] = useState(null);
+  const [showScenariosModal, setShowScenariosModal] = useState(false);
+  const [scenarioName, setScenarioName] = useState("");
+  const [isSavingScenario, setIsSavingScenario] = useState(false);
+
+  // State for dropdown scenario loader
+  const [loadedScenarioId, setLoadedScenarioId] = useState(null);
+  const [loadedScenarioName, setLoadedScenarioName] = useState(null);
+  const [showScenarioDropdown, setShowScenarioDropdown] = useState(false);
+  const [dropdownTop, setDropdownTop] = useState(0);
+  const [dropdownLeft, setDropdownLeft] = useState(0);
+  const dropdownRef = useRef(null);
 
   // --- Chart Controls Hook (extracted to useChartControls hook) ---
   const chartControls = useChartControls();
@@ -99,7 +106,7 @@ const Minitool_1 = () => {
   const barCount = 20;
 
   const chartHeight = Math.max(10, barCount * (BAR_HEIGHT + 2 * BAR_SPACING));
-  console.log("Chart Height:", chartHeight);
+  //console.log("Chart Height:", chartHeight);
   const SVG_HEIGHT = chartHeight + X_AXIS_HEIGHT + TOP_BUFFER;
   const SVG_WIDTH = width - PADDING * 2 - SIDEBAR_WIDTH;
   const chartWidth =
@@ -174,12 +181,14 @@ const Minitool_1 = () => {
   // --- Function to handle value tool ---
   useAnimatedReaction(
     () => valueTool.translateX.value,
-    () => {
-      // Value update is handled inside ValueTool component
-    },
-    [chartWidth]
+    () => {},
+    [chartWidth],
   );
   // --- Function to handle range tool (moved to RangeTool component) ---
+
+  useEffect(() => {
+    fetchScenarios();
+  }, []);
 
   // --- Sorting and filtering handlers ---
   useEffect(() => {
@@ -210,7 +219,6 @@ const Minitool_1 = () => {
   ]);
 
   // --- Handlers for Modal(Pop up window which allows to generate random data) ---
-  // Now handled by useDataGenerationModal hook - open via dataGenerationModal.handleOpenModal()
 
   // --- Reset data to the initial one(which was diaplayed first) ---
   const handleResetData = () => {
@@ -228,13 +236,178 @@ const Minitool_1 = () => {
 
   const handleRemoveLastBar = () => {
     if (currentBatteryData.length === 0) {
-      Alert.alert("Empty Chart", "There are no batteries to remove.");
+      alert(`Empty Chart.There are no batteries to remove.`);
       return;
     }
     const newData = currentBatteryData.slice(0, -1);
     setCurrentBatteryData(newData);
   };
 
+  // --- Database Functions ---
+  const fetchScenarios = async () => {
+    try {
+      setIsLoadingScenarios(true);
+      const response = await axios.get(API_URL);
+      if (response.data.success) {
+        // Filter scenarios to only show those for this tool
+        const filteredScenarios = response.data.data.filter(
+          (scenario) => scenario.toolType === "minitool1",
+        );
+        setScenarios(filteredScenarios);
+      }
+    } catch (error) {
+      console.error("Error fetching scenarios:", error);
+      if (error.code === "ERR_NETWORK") {
+        alert(
+          "Connection Error. Unable to connect to database. Make sure the backend server is running on port 5000.",
+        );
+      } else {
+        alert("Error.Failed to fetch scenarios from database");
+      }
+    } finally {
+      setIsLoadingScenarios(false);
+    }
+  };
+
+  const saveScenario = async () => {
+    if (!scenarioName.trim()) {
+      alert(`Input Error.Please enter a scenario name`);
+      return;
+    }
+
+    try {
+      setIsSavingScenario(true);
+      const response = await axios.post(API_URL, {
+        name: scenarioName,
+        description: "Battery lifespan scenario",
+        toolType: "minitool1",
+        data: {
+          bars: currentBatteryData,
+          minLifespan:
+            displayedData.length > 0
+              ? Math.min(...displayedData.map((item) => item.lifespan))
+              : null,
+          maxLifespan:
+            displayedData.length > 0
+              ? Math.max(...displayedData.map((item) => item.lifespan))
+              : null,
+        },
+      });
+
+      if (response.data.success) {
+        alert(`Success.Scenario saved successfully`);
+        setScenarios([...scenarios, response.data.data]);
+        setScenarioName("");
+        setShowScenariosModal(false);
+      }
+    } catch (error) {
+      console.error("Error saving scenario:", error);
+      alert(`Error.Failed to save scenario to database`);
+    } finally {
+      setIsSavingScenario(false);
+    }
+  };
+
+  const loadScenario = async (scenarioId) => {
+    try {
+      const response = await axios.get(`${API_URL}/${scenarioId}`);
+      if (response.data.success) {
+        const scenarioData = response.data.data;
+        setCurrentBatteryData(scenarioData.data.bars);
+        setLoadedScenarioId(scenarioId);
+        setLoadedScenarioName(scenarioData.name);
+        setSelectedScenarioId(scenarioId);
+        chartControls.setIsSortedByColor(false);
+        chartControls.setIsSortedBySize(false);
+        setShowScenarioDropdown(false);
+        alert(`Success.Loaded scenario: ${scenarioData.name}`);
+      }
+    } catch (error) {
+      console.error("Error loading scenario:", error);
+      alert(`Error.Failed to load scenario from database`);
+    }
+  };
+
+  const handleLoadScenarioFromDropdown = async (scenarioId) => {
+    if (!scenarioId) return;
+    try {
+      const response = await axios.get(`${API_URL}/${scenarioId}`);
+      if (response.data.success) {
+        const scenarioData = response.data.data.data;
+        setCurrentBatteryData(scenarioData.bars);
+        setLoadedScenarioName(response.data.data.name);
+        setSelectedScenarioId(scenarioId);
+      } else {
+        alert("Failed to load scenario: " + response.data.error);
+      }
+    } catch (error) {
+      console.error("Error loading scenario:", error);
+      alert("Error loading scenario: " + error.message);
+    }
+  };
+
+  const router = useRouter();
+
+  const deleteScenario = async (scenarioId) => {
+    const executeDeletion = async () => {
+      try {
+        if (selectedScenarioId === scenarioId) {
+          router.replace("/minitool_1");
+        }
+
+        const response = await axios.delete(`${API_URL}/${scenarioId}`);
+
+        if (response.data.success) {
+          // Update the list state
+          setScenarios((prev) => prev.filter((s) => s._id !== scenarioId));
+
+          if (selectedScenarioId === scenarioId) {
+            setSelectedScenarioId(null);
+          }
+
+          // Platform-specific Success Alert
+          if (Platform.OS === "web") {
+            window.alert("Success: Scenario deleted successfully");
+          } else {
+            Alert.alert("Success", "Scenario deleted successfully");
+          }
+        }
+      } catch (error) {
+        console.error("Error deleting scenario:", error);
+
+        if (Platform.OS === "web") {
+          window.alert("Error: Failed to delete scenario");
+        } else {
+          Alert.alert("Error", "Failed to delete scenario");
+        }
+      }
+    };
+
+    // --- 2. PLATFORM-SPECIFIC CONFIRMATION ---
+    if (Platform.OS === "web") {
+      // Use the native browser confirmation dialog
+      const confirmed = window.confirm(
+        "Are you sure you want to delete this scenario?",
+      );
+      if (confirmed) {
+        await executeDeletion();
+      }
+    } else {
+      // Use the React Native Mobile Alert
+      Alert.alert(
+        "Confirm Delete",
+        "Are you sure you want to delete this scenario?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Delete",
+            onPress: executeDeletion,
+            style: "destructive",
+          },
+        ],
+      );
+    }
+  };
   // Handlers for add bar modal are now in useBarGenerationModal hook
 
   return (
@@ -322,6 +495,27 @@ const Minitool_1 = () => {
               </View>
             </View>
           )}
+        </View>
+
+        <View style={styles.scenarioLoaderContainer}>
+          {/* --- Scenario Picker Dropdown --- */}
+          <View style={styles.scenarioPickerContainer}>
+            <Text style={styles.pickerLabel}>Select Scenario:</Text>
+            <RNPickerSelect
+              placeholder={{
+                label: "Choose a scenario to load",
+                value: null,
+              }}
+              items={scenarios.map((scenario) => ({
+                label: scenario.name,
+                value: scenario._id,
+              }))}
+              onValueChange={handleLoadScenarioFromDropdown}
+              style={pickerSelectStyles}
+              value={selectedScenarioId}
+              useNativeAndroidPickerStyle={false}
+            />
+          </View>
         </View>
 
         {/* Bar chart with tools*/}
@@ -420,7 +614,7 @@ const Minitool_1 = () => {
                               dotsOnly={chartControls.showDotsOnly}
                               maxLifespan={MAX_LIFESPAN}
                             />
-                          )
+                          ),
                       )}
 
                       {/* --- Range tool (3 Line, 3 rectangles) - rendered by RangeTool hook --- */}
@@ -528,11 +722,120 @@ const Minitool_1 = () => {
           </View>
         </View>
 
-        {/* --- Pop-up window for generating data set (now via hook) --- */}
+        {/* --- Database Scenario Management Buttons --- */}
+        <View style={styles.databaseButtonContainer}>
+          <View style={styles.buttonWrapper}>
+            <Button
+              title="Save Current Scenario"
+              onPress={() => setShowScenariosModal(true)}
+              color="#0066cc"
+            />
+          </View>
+          <View style={styles.buttonWrapper}>
+            <Button
+              title="Load Scenario"
+              onPress={() => {
+                fetchScenarios();
+                setShowScenariosModal(true);
+              }}
+              color="#009900"
+            />
+          </View>
+        </View>
+
+        {/* --- Pop-up window for generating data set --- */}
         {dataGenerationModal.renderModal()}
 
-        {/* --- Pop-up window for adding a single bar (now via hook) --- */}
+        {/* --- Pop-up window for adding a single bar --- */}
         {barGenerationModal.renderModal()}
+
+        {/* --- Scenarios Management Modal --- */}
+        <Modal
+          visible={showScenariosModal}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowScenariosModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Manage Scenarios</Text>
+
+              {/* Save Scenario Section */}
+              <View style={styles.saveScenarioSection}>
+                <Text style={styles.sectionTitle}>Save Current Scenario</Text>
+                <TextInput
+                  style={styles.scenarioInput}
+                  placeholder="Enter scenario name..."
+                  value={scenarioName}
+                  onChangeText={setScenarioName}
+                  editable={!isSavingScenario}
+                />
+                <Button
+                  title={isSavingScenario ? "Saving..." : "Save Scenario"}
+                  onPress={saveScenario}
+                  disabled={isSavingScenario}
+                  color="#0066cc"
+                />
+              </View>
+
+              {/* Load Scenario Section */}
+              <View style={styles.loadScenarioSection}>
+                <Text style={styles.sectionTitle}>Load Saved Scenario</Text>
+                {isLoadingScenarios ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#0066cc" />
+                    <Text>Loading scenarios...</Text>
+                  </View>
+                ) : scenarios.length > 0 ? (
+                  <FlatList
+                    data={scenarios}
+                    keyExtractor={(item) => item._id}
+                    renderItem={({ item }) => (
+                      <View style={styles.scenarioItem}>
+                        <View style={styles.scenarioInfo}>
+                          <Text style={styles.scenarioItemName}>
+                            {item.name}
+                          </Text>
+                          <Text style={styles.scenarioItemDetails}>
+                            {item.data.length} batteries | Created:{" "}
+                            {new Date(item.createdAt).toLocaleDateString()}
+                          </Text>
+                        </View>
+                        <View style={styles.scenarioActions}>
+                          <TouchableOpacity
+                            onPress={() => loadScenario(item._id)}
+                            style={styles.loadButton}
+                          >
+                            <Text style={styles.buttonText}>Load</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => deleteScenario(item._id)}
+                            style={styles.deleteButton}
+                          >
+                            <Text style={styles.buttonText}>Delete</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
+                    scrollEnabled={true}
+                    style={styles.scenariosList}
+                  />
+                ) : (
+                  <Text style={styles.noScenariosText}>
+                    No scenarios saved yet
+                  </Text>
+                )}
+              </View>
+
+              <TouchableOpacity
+                onPress={() => setShowScenariosModal(false)}
+                style={styles.closeButton}
+              >
+                <Text style={styles.closeButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
     </GestureHandlerRootView>
   );
@@ -550,6 +853,23 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
     marginVertical: 10,
+  },
+  // Scenario Loader Styles
+  scenarioLoaderContainer: {
+    width: "95%",
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    position: "relative",
+  },
+  loadingContainer: {
+    padding: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  noScenariosText: {
+    color: "#999",
+    fontSize: 13,
   },
   legendContainer: {
     flexDirection: "row",
@@ -672,81 +992,172 @@ const styles = StyleSheet.create({
   buttonWrapper: {
     flex: 1,
     minWidth: 100,
-    margin: 5,
   },
-  modalCenteredView: {
-    flex: 1,
+  // Database/Scenarios styles
+  databaseButtonContainer: {
+    flexDirection: "row",
     justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#e5e7eb",
-  },
-  modalView: {
-    margin: 20,
-    backgroundColor: "white",
-    borderRadius: 20,
-    padding: 25,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
     width: "90%",
-    maxWidth: 400,
+    marginTop: 15,
+    flexWrap: "wrap",
+    gap: 10,
   },
-  modalText: {
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "white",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: "90%",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
     marginBottom: 20,
     textAlign: "center",
-    fontSize: 18,
+  },
+  sectionTitle: {
+    fontSize: 16,
     fontWeight: "bold",
+    marginBottom: 10,
+    color: "#333",
   },
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-    width: "100%",
+  saveScenarioSection: {
+    marginBottom: 20,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
   },
-  inputLabel: {
-    flex: 2,
-    fontSize: 14,
-    marginRight: 10,
-    fontWeight: "500",
-  },
-  input: {
-    flex: 1.5,
+  scenarioInput: {
     height: 40,
     borderWidth: 1,
     borderColor: "#ccc",
-    padding: 10,
-    borderRadius: 5,
-    textAlign: "center",
-  },
-  modalButtonContainer: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    width: "100%",
-    marginTop: 20,
-  },
-  brandSelectorContainer: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    width: "100%",
-    marginVertical: 15,
-  },
-  brandButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
     borderRadius: 8,
-    borderWidth: 2,
-    borderColor: "#ddd",
+    paddingHorizontal: 12,
+    marginBottom: 10,
+    fontSize: 14,
   },
-  brandButtonSelected: {
-    borderColor: "#007AFF",
-    backgroundColor: "#e7f3ff",
+  loadScenarioSection: {
+    maxHeight: 300,
+    marginBottom: 20,
   },
-  brandButtonText: {
+  scenariosList: {
+    maxHeight: 250,
+  },
+  scenarioItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+    backgroundColor: "#f9f9f9",
+    marginBottom: 8,
+    borderRadius: 8,
+  },
+  scenarioInfo: {
+    flex: 1,
+  },
+  scenarioItemName: {
     fontSize: 14,
     fontWeight: "bold",
+    color: "#333",
+  },
+  scenarioItemDetails: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 4,
+  },
+  scenarioActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  loadButton: {
+    backgroundColor: "#009900",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  deleteButton: {
+    backgroundColor: "#cc0000",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  buttonText: {
+    color: "white",
+    fontWeight: "bold",
+    fontSize: 12,
+  },
+  loadingContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 20,
+  },
+  noScenariosText: {
+    textAlign: "center",
+    color: "#999",
+    fontSize: 14,
+    paddingVertical: 20,
+  },
+  closeButton: {
+    backgroundColor: "#666",
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 10,
+  },
+  closeButtonText: {
+    color: "white",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  scenarioPickerContainer: {
+    width: "90%",
+    marginBottom: 10,
+    alignSelf: "center",
+  },
+  pickerLabel: {
+    fontSize: 14,
+    color: "navy",
+    marginBottom: 5,
+    textAlign: "center",
+  },
+});
+
+// Styles for RNPickerSelect (can be customized)
+const pickerSelectStyles = StyleSheet.create({
+  inputIOS: {
+    fontSize: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: "gray",
+    borderRadius: 4,
+    color: "black",
+    paddingRight: 30,
+    backgroundColor: "white",
+    marginBottom: 10,
+  },
+  inputAndroid: {
+    fontSize: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "gray",
+    borderRadius: 4,
+    color: "black",
+    paddingRight: 30,
+    backgroundColor: "white",
+    marginBottom: 10,
+  },
+  placeholder: {
+    color: "gray",
   },
 });
 

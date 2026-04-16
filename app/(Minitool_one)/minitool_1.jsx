@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   StyleSheet,
   View,
   Text,
-  Switch,
   Platform,
   ScrollView,
   StatusBar,
@@ -16,22 +15,12 @@ import {
   ActivityIndicator,
   FlatList,
 } from "react-native";
-import {
-  Gesture,
-  GestureDetector,
-  GestureHandlerRootView,
-} from "react-native-gesture-handler";
-import Animated, {
-  useSharedValue,
-  useAnimatedProps,
-  useAnimatedStyle,
-  useAnimatedReaction,
-  runOnJS,
-  clamp,
-  withTiming,
-} from "react-native-reanimated";
-import Svg, { Rect, Circle, Line, G, Text as SvgText } from "react-native-svg";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import Animated, { useAnimatedReaction } from "react-native-reanimated";
+import { useRouter } from "expo-router";
+import Svg, { Line, G, Text as SvgText } from "react-native-svg";
 import axios from "axios";
+import RNPickerSelect from "react-native-picker-select";
 import initialBatteryData from "../../data/batteryScenario_set.json";
 import BatteryBar from "./chart_components/BatteryBar";
 import useValueTool from "./tools/ValueTool";
@@ -39,10 +28,6 @@ import useRangeTool from "./tools/RangeTool";
 import useChartControls from "./controls/ChartControls";
 import useDataGenerationModal from "./modals/DataGenerationModal";
 import useBarGenerationModal from "./modals/BarGenerationModal";
-
-const AnimatedG = Animated.createAnimatedComponent(G);
-const AnimatedRect = Animated.createAnimatedComponent(Rect);
-const AnimatedLine = Animated.createAnimatedComponent(Line);
 
 // --- Configuration ---
 const MIN_BATTERY_COUNT_VALUE = 1;
@@ -97,6 +82,14 @@ const Minitool_1 = () => {
   const [scenarioName, setScenarioName] = useState("");
   const [isSavingScenario, setIsSavingScenario] = useState(false);
 
+  // State for dropdown scenario loader
+  const [loadedScenarioId, setLoadedScenarioId] = useState(null);
+  const [loadedScenarioName, setLoadedScenarioName] = useState(null);
+  const [showScenarioDropdown, setShowScenarioDropdown] = useState(false);
+  const [dropdownTop, setDropdownTop] = useState(0);
+  const [dropdownLeft, setDropdownLeft] = useState(0);
+  const dropdownRef = useRef(null);
+
   // --- Chart Controls Hook (extracted to useChartControls hook) ---
   const chartControls = useChartControls();
 
@@ -113,7 +106,7 @@ const Minitool_1 = () => {
   const barCount = 20;
 
   const chartHeight = Math.max(10, barCount * (BAR_HEIGHT + 2 * BAR_SPACING));
-  console.log("Chart Height:", chartHeight);
+  //console.log("Chart Height:", chartHeight);
   const SVG_HEIGHT = chartHeight + X_AXIS_HEIGHT + TOP_BUFFER;
   const SVG_WIDTH = width - PADDING * 2 - SIDEBAR_WIDTH;
   const chartWidth =
@@ -193,11 +186,11 @@ const Minitool_1 = () => {
   );
   // --- Function to handle range tool (moved to RangeTool component) ---
 
-  // --- Sorting and filtering handlers ---
   useEffect(() => {
     fetchScenarios();
   }, []);
 
+  // --- Sorting and filtering handlers ---
   useEffect(() => {
     let dataToDisplay = [...currentBatteryData];
 
@@ -256,7 +249,11 @@ const Minitool_1 = () => {
       setIsLoadingScenarios(true);
       const response = await axios.get(API_URL);
       if (response.data.success) {
-        setScenarios(response.data.data);
+        // Filter scenarios to only show those for this tool
+        const filteredScenarios = response.data.data.filter(
+          (scenario) => scenario.toolType === "minitool1",
+        );
+        setScenarios(filteredScenarios);
       }
     } catch (error) {
       console.error("Error fetching scenarios:", error);
@@ -283,15 +280,18 @@ const Minitool_1 = () => {
       const response = await axios.post(API_URL, {
         name: scenarioName,
         description: "Battery lifespan scenario",
-        data: currentBatteryData,
-        minLifespan:
-          displayedData.length > 0
-            ? Math.min(...displayedData.map((item) => item.lifespan))
-            : null,
-        maxLifespan:
-          displayedData.length > 0
-            ? Math.max(...displayedData.map((item) => item.lifespan))
-            : null,
+        toolType: "minitool1",
+        data: {
+          bars: currentBatteryData,
+          minLifespan:
+            displayedData.length > 0
+              ? Math.min(...displayedData.map((item) => item.lifespan))
+              : null,
+          maxLifespan:
+            displayedData.length > 0
+              ? Math.max(...displayedData.map((item) => item.lifespan))
+              : null,
+        },
       });
 
       if (response.data.success) {
@@ -313,12 +313,14 @@ const Minitool_1 = () => {
       const response = await axios.get(`${API_URL}/${scenarioId}`);
       if (response.data.success) {
         const scenarioData = response.data.data;
-        setCurrentBatteryData(scenarioData.data);
+        setCurrentBatteryData(scenarioData.data.bars);
+        setLoadedScenarioId(scenarioId);
+        setLoadedScenarioName(scenarioData.name);
         setSelectedScenarioId(scenarioId);
         chartControls.setIsSortedByColor(false);
         chartControls.setIsSortedBySize(false);
+        setShowScenarioDropdown(false);
         alert(`Success.Loaded scenario: ${scenarioData.name}`);
-        setShowScenariosModal(false);
       }
     } catch (error) {
       console.error("Error loading scenario:", error);
@@ -326,33 +328,86 @@ const Minitool_1 = () => {
     }
   };
 
-  const deleteScenario = async (scenarioId) => {
-    alert(`Confirm Delete`, `Are you sure you want to delete this scenario?`, [
-      { text: "Cancel", onPress: () => {}, style: "cancel" },
-      {
-        text: "Delete",
-        onPress: async () => {
-          try {
-            const response = await axios.delete(`${API_URL}/${scenarioId}`);
-            if (response.data.success) {
-              setScenarios(
-                scenarios.filter((scenario) => scenario._id !== scenarioId),
-              );
-              if (selectedScenarioId === scenarioId) {
-                setSelectedScenarioId(null);
-              }
-              alert(`Success.Scenario deleted successfully`);
-            }
-          } catch (error) {
-            console.error("Error deleting scenario:", error);
-            alert(`Error.Failed to delete scenario`);
-          }
-        },
-        style: "destructive",
-      },
-    ]);
+  const handleLoadScenarioFromDropdown = async (scenarioId) => {
+    if (!scenarioId) return;
+    try {
+      const response = await axios.get(`${API_URL}/${scenarioId}`);
+      if (response.data.success) {
+        const scenarioData = response.data.data.data;
+        setCurrentBatteryData(scenarioData.bars);
+        setLoadedScenarioName(response.data.data.name);
+        setSelectedScenarioId(scenarioId);
+      } else {
+        alert("Failed to load scenario: " + response.data.error);
+      }
+    } catch (error) {
+      console.error("Error loading scenario:", error);
+      alert("Error loading scenario: " + error.message);
+    }
   };
 
+  const router = useRouter();
+
+  const deleteScenario = async (scenarioId) => {
+    const executeDeletion = async () => {
+      try {
+        if (selectedScenarioId === scenarioId) {
+          router.replace("/minitool_1");
+        }
+
+        const response = await axios.delete(`${API_URL}/${scenarioId}`);
+
+        if (response.data.success) {
+          // Update the list state
+          setScenarios((prev) => prev.filter((s) => s._id !== scenarioId));
+
+          if (selectedScenarioId === scenarioId) {
+            setSelectedScenarioId(null);
+          }
+
+          // Platform-specific Success Alert
+          if (Platform.OS === "web") {
+            window.alert("Success: Scenario deleted successfully");
+          } else {
+            Alert.alert("Success", "Scenario deleted successfully");
+          }
+        }
+      } catch (error) {
+        console.error("Error deleting scenario:", error);
+
+        if (Platform.OS === "web") {
+          window.alert("Error: Failed to delete scenario");
+        } else {
+          Alert.alert("Error", "Failed to delete scenario");
+        }
+      }
+    };
+
+    // --- 2. PLATFORM-SPECIFIC CONFIRMATION ---
+    if (Platform.OS === "web") {
+      // Use the native browser confirmation dialog
+      const confirmed = window.confirm(
+        "Are you sure you want to delete this scenario?",
+      );
+      if (confirmed) {
+        await executeDeletion();
+      }
+    } else {
+      // Use the React Native Mobile Alert
+      Alert.alert(
+        "Confirm Delete",
+        "Are you sure you want to delete this scenario?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Delete",
+            onPress: executeDeletion,
+            style: "destructive",
+          },
+        ],
+      );
+    }
+  };
   // Handlers for add bar modal are now in useBarGenerationModal hook
 
   return (
@@ -440,6 +495,27 @@ const Minitool_1 = () => {
               </View>
             </View>
           )}
+        </View>
+
+        <View style={styles.scenarioLoaderContainer}>
+          {/* --- Scenario Picker Dropdown --- */}
+          <View style={styles.scenarioPickerContainer}>
+            <Text style={styles.pickerLabel}>Select Scenario:</Text>
+            <RNPickerSelect
+              placeholder={{
+                label: "Choose a scenario to load",
+                value: null,
+              }}
+              items={scenarios.map((scenario) => ({
+                label: scenario.name,
+                value: scenario._id,
+              }))}
+              onValueChange={handleLoadScenarioFromDropdown}
+              style={pickerSelectStyles}
+              value={selectedScenarioId}
+              useNativeAndroidPickerStyle={false}
+            />
+          </View>
         </View>
 
         {/* Bar chart with tools*/}
@@ -778,6 +854,23 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginVertical: 10,
   },
+  // Scenario Loader Styles
+  scenarioLoaderContainer: {
+    width: "95%",
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    position: "relative",
+  },
+  loadingContainer: {
+    padding: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  noScenariosText: {
+    color: "#999",
+    fontSize: 13,
+  },
   legendContainer: {
     flexDirection: "row",
     justifyContent: "center",
@@ -899,81 +992,6 @@ const styles = StyleSheet.create({
   buttonWrapper: {
     flex: 1,
     minWidth: 100,
-    margin: 5,
-  },
-  modalCenteredView: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#e5e7eb",
-  },
-  modalView: {
-    margin: 20,
-    backgroundColor: "white",
-    borderRadius: 20,
-    padding: 25,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-    width: "90%",
-    maxWidth: 400,
-  },
-  modalText: {
-    marginBottom: 20,
-    textAlign: "center",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-    width: "100%",
-  },
-  inputLabel: {
-    flex: 2,
-    fontSize: 14,
-    marginRight: 10,
-    fontWeight: "500",
-  },
-  input: {
-    flex: 1.5,
-    height: 40,
-    borderWidth: 1,
-    borderColor: "#ccc",
-    padding: 10,
-    borderRadius: 5,
-    textAlign: "center",
-  },
-  modalButtonContainer: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    width: "100%",
-    marginTop: 20,
-  },
-  brandSelectorContainer: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    width: "100%",
-    marginVertical: 15,
-  },
-  brandButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: "#ddd",
-  },
-  brandButtonSelected: {
-    borderColor: "#007AFF",
-    backgroundColor: "#e7f3ff",
-  },
-  brandButtonText: {
-    fontSize: 14,
-    fontWeight: "bold",
   },
   // Database/Scenarios styles
   databaseButtonContainer: {
@@ -1098,6 +1116,48 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "bold",
     fontSize: 14,
+  },
+  scenarioPickerContainer: {
+    width: "90%",
+    marginBottom: 10,
+    alignSelf: "center",
+  },
+  pickerLabel: {
+    fontSize: 14,
+    color: "navy",
+    marginBottom: 5,
+    textAlign: "center",
+  },
+});
+
+// Styles for RNPickerSelect (can be customized)
+const pickerSelectStyles = StyleSheet.create({
+  inputIOS: {
+    fontSize: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: "gray",
+    borderRadius: 4,
+    color: "black",
+    paddingRight: 30,
+    backgroundColor: "white",
+    marginBottom: 10,
+  },
+  inputAndroid: {
+    fontSize: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "gray",
+    borderRadius: 4,
+    color: "black",
+    paddingRight: 30,
+    backgroundColor: "white",
+    marginBottom: 10,
+  },
+  placeholder: {
+    color: "gray",
   },
 });
 

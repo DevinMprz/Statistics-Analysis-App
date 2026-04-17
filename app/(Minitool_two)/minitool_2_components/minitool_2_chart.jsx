@@ -23,7 +23,7 @@ const defaultSettings = {
   dataBefore: null,
   dataAfter: null,
   dotRadius: 4,
-  thresholdColor: "red",
+  thresholdColor: "blue",
   axisColor: "black",
   separatorColor: "purple", // For box plot separators
   margins: { top: 40, bottom: 40, left: 40, right: 20 }, // Increased bottom margin to 40
@@ -55,6 +55,11 @@ const ChartContent = ({
     draggingLineId,
     chartName,
     isCombined,
+    valueToolEnabled,
+    valueToolLine,
+    onValueToolDrag,
+    onValueToolDragEnd,
+    fixedGroupSize,
 }) => {
     const svgWidth = width;
     const innerWidth = svgWidth - margins.left - margins.right;
@@ -95,6 +100,16 @@ const ChartContent = ({
                 }
                 break;
             }
+            case 'fixed-group-size': {
+                if (fixedGroupSize > 0) {
+                    const sortedForGroups = [...dataValues].sort((a, b) => a - b);
+                    for (let i = fixedGroupSize; i < sortedForGroups.length; i += fixedGroupSize) {
+                        const boundaryValue = (sortedForGroups[i - 1] + sortedForGroups[i]) / 2;
+                        lines.push(xScale(boundaryValue));
+                    }
+                }
+                break;
+            }
             default: break;
         }
         return lines.map((x, index) => ({
@@ -102,7 +117,7 @@ const ChartContent = ({
             x,
             isDraggable: false,
         }));
-    }, [groupMode, dataValues, xScale, intervalWidth, minData, maxData, datasetKey]);
+    }, [groupMode, dataValues, xScale, intervalWidth, fixedGroupSize, minData, maxData, datasetKey]);
 
     const levelGap = dotRadius * 2 + 2;
     const scatterPlotData = useMemo(() => {
@@ -119,7 +134,7 @@ const ChartContent = ({
         if (boxCreationMode) {
             const tapXInG = event.x - margins.left - horizontalPadding;
             const clampedTapX = Math.max(0, Math.min(tapXInG, chartRenderWidth));
-            runOnJS(onAddLine)(clampedTapX);
+            runOnJS(onAddLine)(clampedTapX, datasetKey);
         }
     });
 
@@ -135,7 +150,8 @@ const ChartContent = ({
             if (startX >= endX) return null;
             const valueStart = xScale.invert(startX);
             const valueEnd = xScale.invert(endX);
-            const count = dataValues.filter(v => v >= valueStart && v < valueEnd).length;
+            const isLastBucket = idx === allBoundariesX.length - 2;
+            const count = dataValues.filter(v => v >= valueStart && (isLastBucket ? v <= valueEnd : v < valueEnd)).length;
             if (count > 0) {
                 const midX = (startX + endX) / 2;
                 return (
@@ -176,7 +192,7 @@ const ChartContent = ({
                         {xAxisTicksData.map((tick, i) => (
                             <G key={`tick-${datasetKey}-${i}`}>
                                 <Line x1={xScale(tick)} y1={baseline} x2={xScale(tick)} y2={baseline + 5} stroke={axisColor} strokeWidth={1} />
-                                <SvgText x={xScale(tick)} y={baseline + 15} fontSize={10} fill={axisColor} textAnchor="middle">{Math.round(tick)}</SvgText>
+                                <SvgText x={xScale(tick)} y={baseline + 15} fontSize={10} fill={axisColor} textAnchor="middle">{Number.isInteger(tick) ? tick : tick.toFixed(1)}</SvgText>
                             </G>
                         ))}
                         {calculateAndRenderCountsInGaps}
@@ -193,18 +209,18 @@ const ChartContent = ({
                             const isDraggable = line.isDraggable;
                             const lineDragGesture = Gesture.Pan().activeOffsetX([0, 0]).onBegin(() => {
                                 if (isDraggable) {
-                                    runOnJS(onDragEnd)(line.id, 'start', line.x);
+                                    runOnJS(onDragEnd)(line.id, 'start', line.x, datasetKey);
                                     dragInitialXRef.current = line.x;
                                 }
                             }).onUpdate(event => {
                                 if (isDraggable) {
                                     let newDragX = dragInitialXRef.current + event.translationX;
                                     newDragX = Math.max(0, Math.min(newDragX, chartRenderWidth));
-                                    runOnJS(onDragLine)(line.id, newDragX);
+                                    runOnJS(onDragLine)(line.id, newDragX, datasetKey);
                                 }
                             }).onEnd(() => {
                                 if (isDraggable) {
-                                    runOnJS(onDragEnd)(line.id, 'end');
+                                    runOnJS(onDragEnd)(line.id, 'end', undefined, datasetKey);
                                 }
                             });
                             const handleSize = 12;
@@ -221,6 +237,30 @@ const ChartContent = ({
                                 </G>
                             );
                         })}
+                        {valueToolEnabled && valueToolLine != null && (() => {
+                            const vtDragGesture = Gesture.Pan().activeOffsetX([0, 0]).onBegin(() => {
+                                runOnJS(onValueToolDragEnd)(datasetKey, 'start', valueToolLine);
+                                dragInitialXRef.current = valueToolLine;
+                            }).onUpdate(event => {
+                                let newX = dragInitialXRef.current + event.translationX;
+                                newX = Math.max(0, Math.min(newX, chartRenderWidth));
+                                runOnJS(onValueToolDrag)(datasetKey, newX);
+                            }).onEnd(() => {
+                                runOnJS(onValueToolDragEnd)(datasetKey, 'end');
+                            });
+                            const handleSize = 12;
+                            const handleY = baseline + 17;
+                            return (
+                                <G key={`value-tool-${datasetKey}`}>
+                                    <Line x1={valueToolLine} y1={margins.top - 10} x2={valueToolLine} y2={handleY + handleSize} stroke="red" strokeWidth={2} />
+                                    <SvgText x={valueToolLine} y={margins.top - 18} fontSize={10} fill="red" textAnchor="middle" fontWeight="bold">Value</SvgText>
+                                    <GestureDetector gesture={vtDragGesture}>
+                                        <Rect x={valueToolLine - handleSize / 2} y={handleY} width={handleSize} height={handleSize} fill="red" stroke="black" strokeWidth={1} rx={2} ry={2} />
+                                    </GestureDetector>
+                                    <SvgText x={valueToolLine + 4} y={margins.top - 2} fontSize={10} fill="red" textAnchor="start">{xScale.invert(valueToolLine).toFixed(1)}</SvgText>
+                                </G>
+                            );
+                        })()}
                     </G>
                 </Svg>
             </GestureDetector>
@@ -367,59 +407,100 @@ function CholesterolLevelChart(settings) {
 
   const [splitCharts, setSplitCharts] = useState(false);
   const [showData, setShowData] = useState(true);
-  const [boxCreationMode, setBoxCreationMode] = useState(false); // Enables tap-to-add and visibility of thresholdLines
-  const [thresholdLines, setThresholdLines] = useState([]); // For manual draggable lines
+  const [thresholdLines, setThresholdLines] = useState([]); // For combined mode
+  const [thresholdLinesBefore, setThresholdLinesBefore] = useState([]); // For split mode - before chart
+  const [thresholdLinesAfter, setThresholdLinesAfter] = useState([]); // For split mode - after chart
   const [draggingLineId, setDraggingLineId] = useState(null);
   const dragInitialXRef = useRef(0);
 
-  // New state for consolidated grouping feature
-  const [groupMode, setGroupMode] = useState("none"); // 'none', 'median', 'quartiles', 'two-equal', 'four-equal', 'fixed-interval'
+  // Consolidated grouping feature
+  const [groupMode, setGroupMode] = useState("none"); // 'none', 'median', 'quartiles', 'fixed-interval', 'fixed-group-size', 'custom'
   const [intervalWidth, setIntervalWidth] = useState(initialIntervalWidth || 5);
   const [inputValue, setInputValue] = useState((initialIntervalWidth || 5).toString());
+  const [fixedGroupSize, setFixedGroupSize] = useState(5);
+  const [fixedGroupSizeInput, setFixedGroupSizeInput] = useState("5");
+
+  // Value tool state
+  const [valueToolEnabled, setValueToolEnabled] = useState(false);
+  const [valueToolLinePos, setValueToolLinePos] = useState(null);
+  const [valueToolLinePosBefore, setValueToolLinePosBefore] = useState(null);
+  const [valueToolLinePosAfter, setValueToolLinePosAfter] = useState(null);
+
+  const boxCreationMode = groupMode === 'custom';
 
   useEffect(() => {
-    // Clear all lines (manual and guide) when group mode changes
+    // Clear custom lines when group mode changes
     setThresholdLines([]);
+    setThresholdLinesBefore([]);
+    setThresholdLinesAfter([]);
   }, [groupMode]);
 
 
-  const handleAddLineGlobal = useCallback(
-    (tapXPosition) => {
+  const handleAddLine = useCallback(
+    (tapXPosition, datasetKey) => {
         const newId = Date.now();
         const newLine = { id: newId, x: tapXPosition, isDraggable: true };
-        setThresholdLines((prevLines) => [...prevLines, newLine].sort((a, b) => a.x - b.x));
+        const setter = datasetKey === 'before' ? setThresholdLinesBefore :
+                       datasetKey === 'after' ? setThresholdLinesAfter :
+                       setThresholdLines;
+        setter((prevLines) => [...prevLines, newLine].sort((a, b) => a.x - b.x));
     },
     []
   );
 
-  const handleDragLineUpdateGlobal = useCallback((lineId, newXPosition) => {
-    setThresholdLines((prevLines) =>
+  const handleDragLineUpdate = useCallback((lineId, newXPosition, datasetKey) => {
+    const setter = datasetKey === 'before' ? setThresholdLinesBefore :
+                   datasetKey === 'after' ? setThresholdLinesAfter :
+                   setThresholdLines;
+    setter((prevLines) =>
       prevLines.map((line) =>
         line.id === lineId ? { ...line, x: newXPosition } : line
       )
     );
   }, []);
 
-  const handleDragEnd = useCallback((lineId, type, initialX) => {
+  const handleDragEnd = useCallback((lineId, type, initialX, datasetKey) => {
       if (type === 'start') {
           setDraggingLineId(lineId);
       } else if (type === 'end') {
           setDraggingLineId(null);
-          setThresholdLines(prevLines => [...prevLines].sort((a, b) => a.x - b.x));
+          const setter = datasetKey === 'before' ? setThresholdLinesBefore :
+                         datasetKey === 'after' ? setThresholdLinesAfter :
+                         setThresholdLines;
+          setter(prevLines => [...prevLines].sort((a, b) => a.x - b.x));
       }
+  }, []);
+
+  // Value tool drag handlers
+  const handleValueToolDrag = useCallback((datasetKey, newX) => {
+    if (datasetKey === 'before') setValueToolLinePosBefore(newX);
+    else if (datasetKey === 'after') setValueToolLinePosAfter(newX);
+    else setValueToolLinePos(newX);
+  }, []);
+
+  const handleValueToolDragEnd = useCallback((datasetKey, type, initialX) => {
+    // No special action needed for value tool drag end
   }, []);
 
   const handleIntervalWidthChange = (text) => {
     setInputValue(text);
-    const numValue = parseInt(text, 10);
+    const numValue = parseFloat(text);
     if (!isNaN(numValue) && numValue > 0) {
       setIntervalWidth(numValue);
     } else if (text === "") {
-      setIntervalWidth(initialIntervalWidth || 5); // Or some other default
+      setIntervalWidth(initialIntervalWidth || 5);
     }
   };
 
-  const chartProps = {
+  const handleFixedGroupSizeChange = (text) => {
+    setFixedGroupSizeInput(text);
+    const numValue = parseInt(text, 10);
+    if (!isNaN(numValue) && numValue > 0) {
+      setFixedGroupSize(numValue);
+    }
+  };
+
+  const commonChartProps = {
       width,
       height,
       margins,
@@ -432,12 +513,15 @@ function CholesterolLevelChart(settings) {
       intervalWidth,
       showData,
       boxCreationMode,
-      thresholdLines,
-      onAddLine: handleAddLineGlobal,
-      onDragLine: handleDragLineUpdateGlobal,
+      onAddLine: handleAddLine,
+      onDragLine: handleDragLineUpdate,
       onDragEnd: handleDragEnd,
       draggingLineId,
       chartName,
+      fixedGroupSize,
+      valueToolEnabled,
+      onValueToolDrag: handleValueToolDrag,
+      onValueToolDragEnd: handleValueToolDragEnd,
   };
 
   return (
@@ -446,29 +530,35 @@ function CholesterolLevelChart(settings) {
         {splitCharts ? (
           <>
             <ChartContent
-                {...chartProps}
+                {...commonChartProps}
                 datasetKey="before"
                 chartData={initialDataBefore}
                 dotColorProp="blue"
                 isCombined={false}
+                thresholdLines={thresholdLinesBefore}
+                valueToolLine={valueToolLinePosBefore}
             />
             <ChartContent
-                {...chartProps}
+                {...commonChartProps}
                 datasetKey="after"
                 chartData={initialDataAfter}
                 dotColorProp="orange"
                 isCombined={false}
+                thresholdLines={thresholdLinesAfter}
+                valueToolLine={valueToolLinePosAfter}
             />
           </>
         ) : (
           <ChartContent
-              {...chartProps}
+              {...commonChartProps}
               datasetKey="combined"
               chartData={[
                   ...initialDataBefore.map(value => ({ value, type: 'before' })),
                   ...initialDataAfter.map(value => ({ value, type: 'after' }))
               ]}
               isCombined={true}
+              thresholdLines={thresholdLines}
+              valueToolLine={valueToolLinePos}
           />
         )}
       </View>
@@ -480,7 +570,7 @@ function CholesterolLevelChart(settings) {
                 onValueChange={(value) => {
                     if (value) {
                         setGroupMode(value);
-                        if (value !== 'fixed-interval') {
+                        if (value !== 'fixed-interval' && value !== 'fixed-group-size') {
                             setInputValue((initialIntervalWidth || 5).toString());
                             setIntervalWidth(initialIntervalWidth || 5);
                         }
@@ -488,46 +578,70 @@ function CholesterolLevelChart(settings) {
                 }}
                 items={[
                     { label: 'None', value: 'none' },
-                    { label: 'Median', value: 'median' },
-                    { label: 'Quartiles', value: 'quartiles' },
+                    { label: 'Two equal groups', value: 'median' },
+                    { label: 'Four equal groups', value: 'quartiles' },
                     { label: 'Fixed Interval', value: 'fixed-interval' },
+                    { label: 'Fixed group size', value: 'fixed-group-size' },
+                    { label: 'Create your own groups', value: 'custom' },
                 ]}
                 style={pickerSelectStyles}
                 value={groupMode}
                 placeholder={{}}
             />
-            {groupMode === 'fixed-interval' && (
+        </View>
+        {groupMode === 'fixed-interval' && (
+            <View style={styles.controlRow}>
+                <Text style={styles.controlTextItem}>Interval width:</Text>
                 <TextInput
                     style={styles.input}
-                    keyboardType="numeric"
+                    keyboardType="decimal-pad"
                     value={inputValue}
                     onChangeText={handleIntervalWidthChange}
                 />
-            )}
-        </View>
+            </View>
+        )}
+        {groupMode === 'fixed-group-size' && (
+            <View style={styles.controlRow}>
+                <Text style={styles.controlTextItem}>Elements per group:</Text>
+                <TextInput
+                    style={styles.input}
+                    keyboardType="numeric"
+                    value={fixedGroupSizeInput}
+                    onChangeText={handleFixedGroupSizeChange}
+                />
+            </View>
+        )}
         <View style={styles.controlRow}>
           <Text style={styles.controlTextItem}>Show Data: </Text>
           <Switch value={showData} onValueChange={setShowData} />
+        </View>
+        <View style={styles.controlRow}>
+          <Text style={styles.controlTextItem}>Value tool: </Text>
+          <Switch value={valueToolEnabled} onValueChange={(val) => {
+            setValueToolEnabled(val);
+            if (val) {
+              const innerChartWidth = width - margins.left - margins.right - 20;
+              const centerX = innerChartWidth / 2;
+              setValueToolLinePos(centerX);
+              setValueToolLinePosBefore(centerX);
+              setValueToolLinePosAfter(centerX);
+            }
+          }} />
         </View>
         <View style={styles.controlRow}>
             <Text style={styles.controlTextItem}>Split Colors: </Text>
             <Switch value={splitCharts} onValueChange={setSplitCharts} />
         </View>
         <View style={styles.controlRow}>
-          <Text style={styles.controlTextItem}>Create Boxes: </Text>
-          <Switch
-            value={boxCreationMode}
-            onValueChange={setBoxCreationMode}
-          />
-        </View>
-        <View style={styles.controlRow}>
           <Button
-            title="Clear All Lines" // Renamed for clarity
+            title="Clear All Lines"
             onPress={() => {
               setThresholdLines([]);
+              setThresholdLinesBefore([]);
+              setThresholdLinesAfter([]);
               setGroupMode("none");
             }}
-            disabled={thresholdLines.length === 0 && groupMode === 'none'}
+            disabled={thresholdLines.length === 0 && thresholdLinesBefore.length === 0 && thresholdLinesAfter.length === 0 && groupMode === 'none'}
           />
         </View>
       </View>

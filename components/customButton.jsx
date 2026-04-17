@@ -4,19 +4,20 @@ import React from "react";
 
 const CustomButton = ({
   title,
-  handlePress,
+  hadlePress,
   containerStyles,
   textStyles,
   isLoading,
+  testID,
 }) => {
   return (
     <TouchableOpacity
-      onPress={handlePress}
+      testID={testID}
+      onPress={hadlePress}
       activeOpacity={0.7}
       disabled={isLoading}
-      className={`bg-sky-400/75 rounded-xl min-h-[62px] justify-center items-center ${
-        containerStyles || ""
-      } ${isLoading ? "opacity-50" : ""}`}
+      className={`rounded-xl min-h-[62px] justify-center items-center ${containerStyles}
+		${isLoading ? "opacity-50" : ""}`}
     >
       <Text
         className={`text-primary font-extrabold text-lg ${textStyles || ""}`}

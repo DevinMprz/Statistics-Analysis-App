@@ -1,3 +1,4 @@
+import "react-native-gesture-handler";
 import { StyleSheet, Text, View } from "react-native";
 import { SplashScreen, Slot, Stack } from "expo-router";
 import "../global.css";
@@ -11,6 +12,9 @@ const RootLayout = () => {
   return (
     <Stack>
       <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="(Minitool_one)" options={{ headerShown: false }} />
+      <Stack.Screen name="(Minitool_two)" options={{ headerShown: false }} />
+      <Stack.Screen name="(Minitool_three)" options={{ headerShown: false }} />
     </Stack>
   );
 };

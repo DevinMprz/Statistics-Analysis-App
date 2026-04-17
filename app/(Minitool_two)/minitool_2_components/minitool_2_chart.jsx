@@ -412,6 +412,7 @@ function CholesterolLevelChart(settings) {
   const [thresholdLinesAfter, setThresholdLinesAfter] = useState([]); // For split mode - after chart
   const [draggingLineId, setDraggingLineId] = useState(null);
   const dragInitialXRef = useRef(0);
+  const isDraggingRef = useRef(false); // Track if a drag operation is in progress
 
   // Consolidated grouping feature
   const [groupMode, setGroupMode] = useState("none"); // 'none', 'median', 'quartiles', 'fixed-interval', 'fixed-group-size', 'custom'

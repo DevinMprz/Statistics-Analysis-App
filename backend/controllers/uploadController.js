@@ -100,7 +100,7 @@ function validateDataPoints(dataPoints, toolType) {
         );
         if (!hasNumeric) {
           throw new Error(
-            "Minitool 2 datasets must contain at least one numeric column.",
+            "Minitool 2 scenarios must contain at least one numeric column.",
           );
         }
       }

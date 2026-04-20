@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   FlatList,
 } from 'react-native';
+import axios from 'axios';
 import RNPickerSelect from 'react-native-picker-select';
 import { CholesterolLevelChart, defaultSettings as chartDefaultSettings } from './minitool_2_components/minitool_2_chart';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -29,7 +30,7 @@ import {
 const cholesterolExtent = calculateCombinedExtent([cholesterolData.before, cholesterolData.after]);
 const speedtrapExtent = calculateCombinedExtent([speedtrapData.before, speedtrapData.after]);
 
-const scenarioPresets = {
+const defaultPresets = {
     cholesterol: {
         label: 'Cholesterol Levels',
         data: cholesterolData,
@@ -72,23 +73,16 @@ const CholesterolPage = () => {
     const [selectedScenario, setSelectedScenario] = useState('cholesterol');
     const [isLegendOpen, setIsLegendOpen] = useState(false);
 
-    // Database-related state
-    const [dbScenarios, setDbScenarios] = useState([]);
+    // Unified scenarios: hardcoded presets + DB scenarios
+    const [scenarios, setScenarios] = useState(defaultPresets);
     const [isLoadingScenarios, setIsLoadingScenarios] = useState(false);
     const [showScenariosModal, setShowScenariosModal] = useState(false);
     const [scenarioName, setScenarioName] = useState("");
     const [isSavingScenario, setIsSavingScenario] = useState(false);
 
-    // State for loaded scenario data (overrides default data when loaded from DB)
-    const [loadedScenarioData, setLoadedScenarioData] = useState(null);
-    const [loadedScenarioName, setLoadedScenarioName] = useState(null);
-
     const handleScenarioChange = (value) => {
         if (value) {
             setSelectedScenario(value);
-            // Clear any loaded DB scenario when switching presets
-            setLoadedScenarioData(null);
-            setLoadedScenarioName(null);
         }
     };
 
@@ -96,15 +90,36 @@ const CholesterolPage = () => {
     const fetchScenarios = async () => {
         setIsLoadingScenarios(true);
         try {
-            const response = await fetch(API_URL);
-            const result = await response.json();
-            if (result.success) {
-                const filteredScenarios = result.data.filter(
+            const response = await axios.get(API_URL);
+            if (response.data.success) {
+                const filteredScenarios = response.data.data.filter(
                     (scenario) => scenario.toolType === "minitool2_cholesterol",
                 );
-                setDbScenarios(filteredScenarios);
+                const dbEntries = {};
+                filteredScenarios.forEach((s) => {
+                    const data = { before: s.data.dataBefore, after: s.data.dataAfter };
+                    const extent = calculateCombinedExtent([data.before, data.after]);
+                    dbEntries[`db_${s._id}`] = {
+                        label: s.name,
+                        data,
+                        settings: {
+                            ...chartDefaultSettings,
+                            chartName: s.name,
+                            xDomain: {
+                                min: Math.floor(extent.min),
+                                max: Math.ceil(extent.max),
+                            },
+                            xAxisStep: 2,
+                            initialIntervalWidth: 10,
+                        },
+                        component: CholesterolLevelChart,
+                        isFromDb: true,
+                        dbId: s._id,
+                    };
+                });
+                setScenarios({ ...defaultPresets, ...dbEntries });
             } else {
-                console.error("Failed to fetch scenarios:", result.error);
+                console.error("Failed to fetch scenarios:", response.data.error);
             }
         } catch (error) {
             console.error("Error fetching scenarios:", error);
@@ -121,12 +136,12 @@ const CholesterolPage = () => {
 
         setIsSavingScenario(true);
         try {
-            const currentPreset = scenarioPresets[selectedScenario];
-            const dataToSave = loadedScenarioData || currentPreset.data;
+            const currentScenario = scenarios[selectedScenario];
+            const dataToSave = currentScenario.data;
 
             const scenarioData = {
                 name: scenarioName,
-                description: `${currentPreset.label} scenario`,
+                description: `${currentScenario.label} scenario`,
                 toolType: "minitool2_cholesterol",
                 data: {
                     dataBefore: dataToSave.before,
@@ -135,21 +150,13 @@ const CholesterolPage = () => {
                 },
             };
 
-            const response = await fetch(API_URL, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(scenarioData),
-            });
-
-            const result = await response.json();
-            if (result.success) {
+            const response = await axios.post(API_URL, scenarioData);
+            if (response.data.success) {
                 alert("Scenario saved successfully!");
                 setScenarioName("");
                 fetchScenarios();
             } else {
-                alert("Failed to save scenario: " + result.error);
+                alert("Failed to save scenario: " + response.data.error);
             }
         } catch (error) {
             console.error("Error saving scenario:", error);
@@ -160,23 +167,44 @@ const CholesterolPage = () => {
     };
 
     const loadScenario = async (scenarioId) => {
+        const key = `db_${scenarioId}`;
+        if (scenarios[key]) {
+            setSelectedScenario(key);
+            alert("Scenario loaded successfully!");
+            setShowScenariosModal(false);
+            return;
+        }
         try {
-            const response = await fetch(`${API_URL}/${scenarioId}`);
-            const result = await response.json();
-            if (result.success) {
-                const scenarioData = result.data.data;
-                setLoadedScenarioData({
-                    before: scenarioData.dataBefore,
-                    after: scenarioData.dataAfter,
-                });
-                setLoadedScenarioName(result.data.name);
-                if (scenarioData.scenarioType && scenarioPresets[scenarioData.scenarioType]) {
-                    setSelectedScenario(scenarioData.scenarioType);
-                }
+            const response = await axios.get(`${API_URL}/${scenarioId}`);
+            if (response.data.success) {
+                const s = response.data.data;
+                const data = { before: s.data.dataBefore, after: s.data.dataAfter };
+                const extent = calculateCombinedExtent([data.before, data.after]);
+                setScenarios(prev => ({
+                    ...prev,
+                    [key]: {
+                        label: s.name,
+                        data,
+                        settings: {
+                            ...chartDefaultSettings,
+                            chartName: s.name,
+                            xDomain: {
+                                min: Math.floor(extent.min),
+                                max: Math.ceil(extent.max),
+                            },
+                            xAxisStep: 2,
+                            initialIntervalWidth: 10,
+                        },
+                        component: CholesterolLevelChart,
+                        isFromDb: true,
+                        dbId: s._id,
+                    },
+                }));
+                setSelectedScenario(key);
                 alert("Scenario loaded successfully!");
                 setShowScenariosModal(false);
             } else {
-                alert("Failed to load scenario: " + result.error);
+                alert("Failed to load scenario: " + response.data.error);
             }
         } catch (error) {
             console.error("Error loading scenario:", error);
@@ -186,15 +214,20 @@ const CholesterolPage = () => {
 
     const deleteScenario = async (scenarioId) => {
         try {
-            const response = await fetch(`${API_URL}/${scenarioId}`, {
-                method: "DELETE",
-            });
-            const result = await response.json();
-            if (result.success) {
+            const response = await axios.delete(`${API_URL}/${scenarioId}`);
+            if (response.data.success) {
+                const key = `db_${scenarioId}`;
+                if (selectedScenario === key) {
+                    setSelectedScenario('cholesterol');
+                }
+                setScenarios(prev => {
+                    const updated = { ...prev };
+                    delete updated[key];
+                    return updated;
+                });
                 alert("Scenario deleted successfully!");
-                fetchScenarios();
             } else {
-                alert("Failed to delete scenario: " + result.error);
+                alert("Failed to delete scenario: " + response.data.error);
             }
         } catch (error) {
             console.error("Error deleting scenario:", error);
@@ -208,25 +241,22 @@ const CholesterolPage = () => {
     }, []);
 
     const ActiveScenario = useMemo(() => {
-        const scenario = scenarioPresets[selectedScenario];
+        const scenario = scenarios[selectedScenario];
         if (!scenario) return null;
 
         const ScenarioComponent = scenario.component;
         const chartWidth = screenWidth < SMALL_SCREEN_THRESHOLD ? screenWidth * 0.9 : screenWidth * 0.8;
 
-        // Use loaded DB data if available, otherwise use preset data
-        const data = loadedScenarioData || scenario.data;
-
         return (
             <ScenarioComponent
                 {...scenario.settings}
-                data={data}
+                data={scenario.data}
                 width={chartWidth}
                 height={180}
                 dotRadius={5}
             />
         );
-    }, [selectedScenario, loadedScenarioData]);
+    }, [selectedScenario, scenarios]);
 
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
@@ -234,11 +264,11 @@ const CholesterolPage = () => {
                 <ScrollView contentContainerStyle={styles.scrollViewContent}>
                     <View style={styles.moduleContainer}>
                         <Text style={styles.moduleTitle}>
-                            Module One: Cholesterol & Speed Trap Scenarios
+                            Minitool 2: Cholesterol & Speed Trap Scenarios
                         </Text>
-                        {loadedScenarioName && (
+                        {scenarios[selectedScenario]?.isFromDb && (
                             <Text style={styles.loadedScenarioText}>
-                                Loaded: {loadedScenarioName}
+                                Loaded: {scenarios[selectedScenario].label}
                             </Text>
                         )}
                         <TouchableOpacity
@@ -299,8 +329,8 @@ const CholesterolPage = () => {
                             <Text style={styles.pickerLabel}>Select Scenario:</Text>
                             <RNPickerSelect
                                 onValueChange={handleScenarioChange}
-                                items={Object.keys(scenarioPresets).map(key => ({
-                                    label: scenarioPresets[key].label,
+                                items={Object.keys(scenarios).map(key => ({
+                                    label: scenarios[key].label,
                                     value: key,
                                 }))}
                                 style={pickerSelectStyles}
@@ -308,6 +338,7 @@ const CholesterolPage = () => {
                                 placeholder={{}}
                             />
                         </View>
+
                         <View style={styles.chartContainer}>
                             {ActiveScenario}
                         </View>
@@ -369,35 +400,35 @@ const CholesterolPage = () => {
                                     <View style={styles.loadingContainer}>
                                         <ActivityIndicator size="large" color="#0000ff" />
                                     </View>
-                                ) : dbScenarios.length === 0 ? (
+                                ) : Object.keys(scenarios).filter(k => scenarios[k].isFromDb).length === 0 ? (
                                     <Text style={styles.noScenariosText}>
                                         No scenarios saved yet
                                     </Text>
                                 ) : (
                                     <FlatList
-                                        data={dbScenarios}
-                                        keyExtractor={(item) => item._id}
+                                        data={Object.entries(scenarios).filter(([, s]) => s.isFromDb).map(([key, s]) => ({ key, ...s }))}
+                                        keyExtractor={(item) => item.dbId}
                                         scrollEnabled={false}
                                         renderItem={({ item }) => (
                                             <View style={styles.scenarioItem}>
                                                 <View style={styles.scenarioInfo}>
                                                     <Text style={styles.scenarioItemName}>
-                                                        {item.name}
-                                                    </Text>
-                                                    <Text style={styles.scenarioItemDetails}>
-                                                        {new Date(item.createdAt).toLocaleDateString()}
+                                                        {item.label}
                                                     </Text>
                                                 </View>
                                                 <View style={styles.scenarioActions}>
                                                     <TouchableOpacity
                                                         style={styles.loadButton}
-                                                        onPress={() => loadScenario(item._id)}
+                                                        onPress={() => {
+                                                            setSelectedScenario(item.key);
+                                                            setShowScenariosModal(false);
+                                                        }}
                                                     >
                                                         <Text style={styles.buttonText}>Load</Text>
                                                     </TouchableOpacity>
                                                     <TouchableOpacity
                                                         style={styles.deleteButton}
-                                                        onPress={() => deleteScenario(item._id)}
+                                                        onPress={() => deleteScenario(item.dbId)}
                                                     >
                                                         <Text style={styles.buttonText}>Delete</Text>
                                                     </TouchableOpacity>

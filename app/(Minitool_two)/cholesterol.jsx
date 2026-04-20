@@ -12,6 +12,8 @@ import {
   ActivityIndicator,
   FlatList,
 } from 'react-native';
+import UploadDataset from "../../components/UploadDataset";
+
 import RNPickerSelect from 'react-native-picker-select';
 import { CholesterolLevelChart, defaultSettings as chartDefaultSettings } from './minitool_2_components/minitool_2_chart';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -326,6 +328,14 @@ const CholesterolPage = () => {
                                 </Text>
                             </TouchableOpacity>
                         </View>
+                            <UploadDataset
+                                name="My Cholesterol Data"
+                                description="Class experiment results"
+                                toolType="minitool2_cholesterol"
+                                onSuccess={(scenario) => console.log("Saved:", scenario._id)}
+                                onError={(msg) => console.warn(msg)}
+                            />
+                        
                     </View>
                 </ScrollView>
 

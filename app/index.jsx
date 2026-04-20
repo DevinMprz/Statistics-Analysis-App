@@ -34,9 +34,9 @@ export default function App() {
             containerStyles={menuButtonStyles}
           />
           <CustomButton
-            title="Minitool2"
-            handlePress={() => router.push("/cholesterol")}
-            containerStyles="w-full mt-7"
+            title="Minitool 2"
+            hadlePress={() => router.push("/cholesterol")}
+            containerStyles={menuButtonStyles}
           />
           <CustomButton
             title="Minitool 3"

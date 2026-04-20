@@ -87,12 +87,17 @@ export default function UploadDataset({
     try {
       const formData = new FormData();
 
-      // Attach the file — React Native expects { uri, name, type }
-      formData.append("file", {
-        uri: selectedFile.uri,
-        name: selectedFile.name,
-        type: selectedFile.mimeType || "application/octet-stream",
-      });
+      // On web, expo-document-picker provides a File object via selectedFile.file
+      // On native, we pass the { uri, name, type } object that React Native expects
+      if (Platform.OS === "web" && selectedFile.file) {
+        formData.append("file", selectedFile.file, selectedFile.name);
+      } else {
+        formData.append("file", {
+          uri: selectedFile.uri,
+          name: selectedFile.name,
+          type: selectedFile.mimeType || "application/octet-stream",
+        });
+      }
 
       formData.append("name", name.trim());
       formData.append("description", description.trim());

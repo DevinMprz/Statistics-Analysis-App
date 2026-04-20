@@ -12,10 +12,9 @@ import {
   ActivityIndicator,
   FlatList,
 } from 'react-native';
-import UploadDataset from "../../components/UploadDataset";
 
 import axios from 'axios';
-import UploadDataset from "../../components/UploadDataset";
+import UploadScenarioModal from "../../components/UploadScenarioModal";
 
 import RNPickerSelect from 'react-native-picker-select';
 import { CholesterolLevelChart, defaultSettings as chartDefaultSettings } from './minitool_2_components/minitool_2_chart';
@@ -83,6 +82,7 @@ const CholesterolPage = () => {
     const [showScenariosModal, setShowScenariosModal] = useState(false);
     const [scenarioName, setScenarioName] = useState("");
     const [isSavingScenario, setIsSavingScenario] = useState(false);
+    const [showUploadModal, setShowUploadModal] = useState(false);
 
     const handleScenarioChange = (value) => {
         if (value) {
@@ -101,7 +101,23 @@ const CholesterolPage = () => {
                 );
                 const dbEntries = {};
                 filteredScenarios.forEach((s) => {
-                    const data = { before: s.data.dataBefore, after: s.data.dataAfter };
+                    let data;
+                    if (s.data.dataBefore && s.data.dataAfter) {
+                        // Manually saved scenario format
+                        data = { before: s.data.dataBefore, after: s.data.dataAfter };
+                    } else if (s.data.dataPoints && Array.isArray(s.data.dataPoints)) {
+                        // Uploaded CSV/Excel format: array of row objects
+                        const cols = s.data.columns || Object.keys(s.data.dataPoints[0] || {});
+                        const beforeCol = cols.find(c => c.toLowerCase() === 'before') || cols[0];
+                        const afterCol = cols.find(c => c.toLowerCase() === 'after') || cols[1];
+                        data = {
+                            before: s.data.dataPoints.map(r => r[beforeCol]).filter(v => typeof v === 'number'),
+                            after: s.data.dataPoints.map(r => r[afterCol]).filter(v => typeof v === 'number'),
+                        };
+                    } else {
+                        return; // skip unrecognized format
+                    }
+                    if (!data.before.length && !data.after.length) return;
                     const extent = calculateCombinedExtent([data.before, data.after]);
                     dbEntries[`db_${s._id}`] = {
                         label: s.name,
@@ -360,15 +376,15 @@ const CholesterolPage = () => {
                                     Save/Load Scenario
                                 </Text>
                             </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.databaseButton, { backgroundColor: '#10b981' }]}
+                                onPress={() => setShowUploadModal(true)}
+                            >
+                                <Text style={styles.databaseButtonText}>
+                                    Upload Scenario from File
+                                </Text>
+                            </TouchableOpacity>
                         </View>
-                            <UploadDataset
-                                name="My Cholesterol Data"
-                                description="Class experiment results"
-                                toolType="minitool2_cholesterol"
-                                onSuccess={(scenario) => console.log("Saved:", scenario._id)}
-                                onError={(msg) => console.warn(msg)}
-                            />
-                        
                     </View>
                 </ScrollView>
 
@@ -461,6 +477,13 @@ const CholesterolPage = () => {
                         </View>
                     </View>
                 </Modal>
+
+                <UploadScenarioModal
+                    visible={showUploadModal}
+                    onClose={() => setShowUploadModal(false)}
+                    toolType="minitool2_cholesterol"
+                    onSuccess={() => fetchScenarios()}
+                />
             </SafeAreaView>
         </GestureHandlerRootView>
     );

@@ -1,10 +1,15 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, {
+  useEffect,
+  useState,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
 import {
   StyleSheet,
   View,
   Text,
   Platform,
-  ScrollView,
   StatusBar,
   Modal,
   Button,
@@ -14,7 +19,10 @@ import {
   ActivityIndicator,
   FlatList,
 } from "react-native";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
+import {
+  GestureHandlerRootView,
+  ScrollView,
+} from "react-native-gesture-handler";
 import Animated, { useAnimatedReaction } from "react-native-reanimated";
 import { useRouter } from "expo-router";
 import Svg, { Line, Circle, G, Text as SvgText } from "react-native-svg";
@@ -47,12 +55,14 @@ const RANGE_HANDLE_SIZE = 15;
 
 // --- Chart Layout Constants ---
 const PLATFORM = Platform.OS;
-const MOBILE_TICKS = 6;
+const MOBILE_TICKS = 4;
+const TABLET_TICKS = 6;
 const WEB_TICKS = 10;
-const MOBILE_VALUE_STEP = 26;
+const MOBILE_VALUE_STEP = 39;
+const TABLET_VALUE_STEP = 26;
 const WEB_VALUE_STEP = 13;
-const PADDING = 0;
-const Y_AXIS_WIDTH = 30;
+const PADDING = 10;
+const Y_AXIS_WIDTH = 40;
 const BAR_HEIGHT = 6;
 const BAR_SPACING = 4;
 const X_AXIS_HEIGHT = 20;
@@ -71,23 +81,32 @@ const Minitool_1 = () => {
   const [currentBatteryData, setCurrentBatteryData] =
     useState(initialBatteryData);
   const [displayedData, setDisplayedData] = useState(initialBatteryData);
+
+  const [isScrollEnabled, setIsScrollEnabled] = useState(true);
   const [toolValue, setToolValue] = useState(80.0);
   const [rangeCount, setRangeCount] = useState(0);
 
   const [isHelpVisible, setIsHelpVisible] = useState(false);
 
-  // --- Responsive Layout ---
-  const isMobile = width < 480;
-  const isTablet = width >= 480 && width < 850;
-  const isDesktop = width >= 850;
-
-  // Determine sidebar width based on device type
-  let EFFECTIVE_SIDEBAR_WIDTH = SIDEBAR_WIDTH; // Desktop default (120px)
-  if (isMobile) {
-    EFFECTIVE_SIDEBAR_WIDTH = 0;
-  } else if (isTablet) {
-    EFFECTIVE_SIDEBAR_WIDTH = 100;
-  }
+  // --- Responsive Layout (memoized) ---
+  const { isMobile, isTablet, isDesktop, EFFECTIVE_SIDEBAR_WIDTH } =
+    useMemo(() => {
+      const mobile = width < 480;
+      const tablet = width >= 480 && width < 850;
+      const desktop = width >= 850;
+      let sidebarWidth = SIDEBAR_WIDTH; // Desktop default (120px)
+      if (mobile) {
+        sidebarWidth = 0;
+      } else if (tablet) {
+        sidebarWidth = 100;
+      }
+      return {
+        isMobile: mobile,
+        isTablet: tablet,
+        isDesktop: desktop,
+        EFFECTIVE_SIDEBAR_WIDTH: sidebarWidth,
+      };
+    }, [width]);
 
   // Database-related state
   const [scenarios, setScenarios] = useState([]);
@@ -114,31 +133,83 @@ const Minitool_1 = () => {
   // --- Chart Controls Hook (extracted to useChartControls hook) ---
   const chartControls = useChartControls(width);
 
-  // --- Calculate stats for displayed data ---
-  const visibleBars = displayedData.filter((item) => item.visible);
-  const minLifespan =
-    visibleBars.length > 0
-      ? Math.min(...visibleBars.map((item) => item.lifespan))
-      : 0;
-  const maxLifespan =
-    visibleBars.length > 0
-      ? Math.max(...visibleBars.map((item) => item.lifespan))
-      : 0;
+  // --- Calculate stats for displayed data (memoized) ---
+  const { visibleBars, minLifespan, maxLifespan } = useMemo(() => {
+    const visible = displayedData.filter((item) => item.visible);
+    const min =
+      visible.length > 0
+        ? Math.min(...visible.map((item) => item.lifespan))
+        : 0;
+    const max =
+      visible.length > 0
+        ? Math.max(...visible.map((item) => item.lifespan))
+        : 0;
+    return { visibleBars: visible, minLifespan: min, maxLifespan: max };
+  }, [displayedData]);
   const barCount = 20;
 
-  const chartHeight = Math.max(10, barCount * (BAR_HEIGHT + 2 * BAR_SPACING));
-  //console.log("Chart Height:", chartHeight);
-  const SVG_HEIGHT = chartHeight + X_AXIS_HEIGHT + TOP_BUFFER;
-  const SVG_WIDTH = width - PADDING * 2 - EFFECTIVE_SIDEBAR_WIDTH;
-  const chartWidth =
-    SVG_WIDTH - Y_AXIS_WIDTH > 0
-      ? SVG_WIDTH - Y_AXIS_WIDTH - EFFECTIVE_SIDEBAR_WIDTH
-      : 1;
+  // --- Chart dimensions and tick configuration (memoized) ---
+  const {
+    chartHeight,
+    SVG_HEIGHT,
+    SVG_WIDTH,
+    chartWidth,
+    TICKS_COUNT,
+    VALUE_STEP,
+    TICK_FONT_SIZE,
+  } = useMemo(() => {
+    const height = Math.max(10, barCount * (BAR_HEIGHT + 2 * BAR_SPACING));
+    const svgHeight = height + X_AXIS_HEIGHT + TOP_BUFFER;
 
-  // --- Initial values for tools ---
-  const initialTranslateX = (80.0 / MAX_LIFESPAN) * chartWidth;
-  const initialRangeStartX = (102 / MAX_LIFESPAN) * chartWidth;
-  const initialRangeEndX = (126 / MAX_LIFESPAN) * chartWidth;
+    // 1. Account for the 10px margins on each side of the sidebar (20px total)
+    const sidebarMargins = isDesktop ? 20 : 0;
+
+    const available =
+      width - PADDING * 2 - EFFECTIVE_SIDEBAR_WIDTH - sidebarMargins;
+
+    // 2. Ensure we have a small internal buffer so the "dot" isn't touching the edge
+    const rightInternalBuffer = 20;
+
+    const svgWidth =
+      isMobile || isTablet ? Math.max(available, 500) : available;
+
+    // 3. Subtract that internal buffer from the chartWidth
+    const cWidth = svgWidth - Y_AXIS_WIDTH - rightInternalBuffer;
+
+    // Determine ticks based on device type
+    let ticksCount = WEB_TICKS;
+    let valueStep = WEB_VALUE_STEP;
+    let tickFontSize = "12";
+    if (isMobile) {
+      ticksCount = MOBILE_TICKS;
+      valueStep = MOBILE_VALUE_STEP;
+      tickFontSize = "10";
+    } else if (isTablet) {
+      ticksCount = TABLET_TICKS;
+      valueStep = TABLET_VALUE_STEP;
+      tickFontSize = "11";
+    }
+
+    return {
+      chartHeight: height,
+      SVG_HEIGHT: svgHeight,
+      SVG_WIDTH: svgWidth,
+      chartWidth: cWidth,
+      TICKS_COUNT: ticksCount,
+      VALUE_STEP: valueStep,
+      TICK_FONT_SIZE: tickFontSize,
+    };
+  }, [width, isDesktop, isTablet, isMobile, EFFECTIVE_SIDEBAR_WIDTH, barCount]);
+
+  // --- Initial values for tools (memoized) ---
+  const { initialTranslateX, initialRangeStartX, initialRangeEndX } = useMemo(
+    () => ({
+      initialTranslateX: (80.0 / MAX_LIFESPAN) * chartWidth,
+      initialRangeStartX: (102 / MAX_LIFESPAN) * chartWidth,
+      initialRangeEndX: (126 / MAX_LIFESPAN) * chartWidth,
+    }),
+    [chartWidth],
+  );
 
   // --- Value Tool Gesture Logic (extracted to useValueTool hook) ---
   const valueTool = useValueTool({
@@ -151,6 +222,7 @@ const Minitool_1 = () => {
     toolValue,
     toolColor: TOOL_COLOR,
     X_AXIS_HEIGHT: X_AXIS_HEIGHT,
+    onGestureStateChange: (enabled) => setIsScrollEnabled(enabled),
   });
 
   // --- Range Tool Gesture Logic (extracted to useRangeTool hook) ---
@@ -167,6 +239,7 @@ const Minitool_1 = () => {
     rangeToolColor: RANGE_TOOL_COLOR,
     displayedData,
     X_AXIS_HEIGHT: X_AXIS_HEIGHT,
+    onGestureStateChange: (enabled) => setIsScrollEnabled(enabled),
   });
 
   // --- Data Generation Modal Hook (initialized after tools) ---
@@ -213,26 +286,29 @@ const Minitool_1 = () => {
     fetchScenarios();
   }, []);
 
-  // --- Sorting and filtering handlers ---
+  // --- Sorting and filtering handlers (optimized to avoid unnecessary re-renders) ---
   useEffect(() => {
-    let dataToDisplay = [...currentBatteryData];
+    setDisplayedData((prevData) => {
+      // Check if we need to update at all
+      let dataToDisplay = [...currentBatteryData];
 
-    // Apply sorting
-    if (chartControls.isSortedBySize) {
-      dataToDisplay.sort((a, b) => a.lifespan - b.lifespan);
-    } else if (chartControls.isSortedByColor) {
-      dataToDisplay.sort((a, b) => a.brand.localeCompare(b.brand));
-    }
+      // Apply sorting
+      if (chartControls.isSortedBySize) {
+        dataToDisplay.sort((a, b) => a.lifespan - b.lifespan);
+      } else if (chartControls.isSortedByColor) {
+        dataToDisplay.sort((a, b) => a.brand.localeCompare(b.brand));
+      }
 
-    // Mark which items should be visible (keep them in array with visibility flag)
-    dataToDisplay = dataToDisplay.map((item) => ({
-      ...item,
-      visible:
-        !(chartControls.hideGreenBars && item.brand === "Tough Cell") &&
-        !(chartControls.hidePurpleBars && item.brand === "Always Ready"),
-    }));
+      // Mark which items should be visible (keep them in array with visibility flag)
+      dataToDisplay = dataToDisplay.map((item) => ({
+        ...item,
+        visible:
+          !(chartControls.hideGreenBars && item.brand === "Tough Cell") &&
+          !(chartControls.hidePurpleBars && item.brand === "Always Ready"),
+      }));
 
-    setDisplayedData(dataToDisplay);
+      return dataToDisplay;
+    });
   }, [
     currentBatteryData,
     chartControls.isSortedBySize,
@@ -244,38 +320,38 @@ const Minitool_1 = () => {
   // --- Handlers for Modal(Pop up window which allows to generate random data) ---
 
   // --- Reset data to the initial one(which was diaplayed first) ---
-  const handleResetData = () => {
+  const handleResetData = useCallback(() => {
     setCurrentBatteryData(initialBatteryData);
     chartControls.setIsSortedByColor(false);
     chartControls.setIsSortedBySize(false);
-  };
+  }, [chartControls]);
 
   // --- Handlers for Adding/Removing single bars ---
-  const handleAddBarButtonPress = () => {
+  const handleAddBarButtonPress = useCallback(() => {
     chartControls.setRangeToolActive(false);
     chartControls.setValueToolActive(false);
     barGenerationModal.handleOpenModal();
-  };
+  }, [chartControls, barGenerationModal]);
 
-  const handleRemoveLastBar = () => {
+  const handleRemoveLastBar = useCallback(() => {
     if (currentBatteryData.length === 0) {
       alert(`Empty Chart.There are no batteries to remove.`);
       return;
     }
     const newData = currentBatteryData.slice(0, -1);
     setCurrentBatteryData(newData);
-  };
+  }, [currentBatteryData]);
 
   // --- Handlers for Bar Info Modal ---
-  const handleBarPress = (index, item) => {
+  const handleBarPress = useCallback((index, item) => {
     setSelectedBar({
       brand: item.brand,
       lifespan: item.lifespan,
     });
     setIsBarInfoModalVisible(true);
-  };
+  }, []);
 
-  const handleDeleteBar = () => {
+  const handleDeleteBar = useCallback(() => {
     if (selectedBar) {
       // Find and remove the bar by matching brand and lifespan
       // If multiple bars have the same brand/lifespan, remove the first match
@@ -295,12 +371,12 @@ const Minitool_1 = () => {
       setIsBarInfoModalVisible(false);
       setSelectedBar(null);
     }
-  };
+  }, [selectedBar, currentBatteryData]);
 
-  const handleCloseBarInfoModal = () => {
+  const handleCloseBarInfoModal = useCallback(() => {
     setIsBarInfoModalVisible(false);
     setSelectedBar(null);
-  };
+  }, []);
 
   // --- Database Functions ---
   const fetchScenarios = async () => {
@@ -387,7 +463,7 @@ const Minitool_1 = () => {
     }
   };
 
-  const handleLoadScenarioFromDropdown = async (scenarioId) => {
+  const handleLoadScenarioFromDropdown = useCallback(async (scenarioId) => {
     if (!scenarioId) return;
     try {
       const response = await axios.get(`${API_URL}/${scenarioId}`);
@@ -407,9 +483,33 @@ const Minitool_1 = () => {
       console.error("Error loading scenario:", error);
       alert("Error loading scenario: " + error.message);
     }
-  };
+  }, []);
 
   const router = useRouter();
+
+  // --- Memoized tick labels rendering ---
+  const tickLabels = useMemo(() => {
+    const labels = [];
+    for (let i = 0; i < TICKS_COUNT; i++) {
+      const val = i * VALUE_STEP;
+      if (val > MAX_LIFESPAN) break;
+      const xPos = (val / MAX_LIFESPAN) * chartWidth;
+      labels.push({
+        key: `label-${i}`,
+        x: xPos,
+        y: chartHeight + X_AXIS_HEIGHT + 15,
+        value: val,
+      });
+    }
+    return labels;
+  }, [TICKS_COUNT, VALUE_STEP, MAX_LIFESPAN, chartWidth, chartHeight]);
+
+  // --- Memoized visible bars rendering ---
+  const visibleBarsToRender = useMemo(() => {
+    return displayedData
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => item.visible);
+  }, [displayedData]);
 
   const deleteScenario = async (scenarioId) => {
     const executeDeletion = async () => {
@@ -472,9 +572,6 @@ const Minitool_1 = () => {
     }
   };
   // Handlers for add bar modal are now in useBarGenerationModal hook
-
-  console.log("SVG Height:", SVG_HEIGHT);
-  console.log("Chart Width:", chartWidth);
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={styles.container}>
@@ -628,7 +725,9 @@ const Minitool_1 = () => {
           >
             <UniverseButton
               title={isMobile ? "Upload" : "Mock for Upload"}
-              onPress={console.log("mock upload")}
+              onPress={() =>
+                alert("This is a mock button for the upload functionality.")
+              }
               colorScheme="primary"
               containerStyles={styles.topButton}
             />
@@ -665,11 +764,23 @@ const Minitool_1 = () => {
               ]}
             >
               <ScrollView
-                horizontal={false}
-                scrollEnabled={SVG_HEIGHT > 500}
+                horizontal={true}
+                // Only allow scrolling if the SVG is actually wider than the screen
+                scrollEnabled={
+                  SVG_WIDTH > width - EFFECTIVE_SIDEBAR_WIDTH && isScrollEnabled
+                }
                 style={[styles.chartContainer, { flex: 1, width: "100%" }]}
+                contentContainerStyle={{
+                  width: SVG_WIDTH + Y_AXIS_WIDTH, // Use exact width to stop "infinite scrolling"
+                  paddingRight: 0, // Ensure no extra padding is added here
+                }}
               >
-                <View>
+                <View
+                  style={{
+                    width: SVG_WIDTH + Y_AXIS_WIDTH,
+                    height: SVG_HEIGHT + X_AXIS_HEIGHT,
+                  }}
+                >
                   {/* --- Render the label of value tool --- */}
                   <Animated.View
                     style={[
@@ -697,7 +808,7 @@ const Minitool_1 = () => {
 
                   {/* --- Whole bar chart --- */}
                   <Svg
-                    width={SVG_WIDTH - Y_AXIS_WIDTH}
+                    width={SVG_WIDTH + Y_AXIS_WIDTH}
                     height={SVG_HEIGHT + X_AXIS_HEIGHT}
                     style={{ zIndex: 1 }}
                   >
@@ -711,47 +822,34 @@ const Minitool_1 = () => {
                         stroke={AXIS_COLOR}
                         strokeWidth="1"
                       />
-                      {Array.from({
-                        length: PLATFORM === "web" ? WEB_TICKS : MOBILE_TICKS,
-                      }).map((_, i) => {
-                        const val =
-                          i *
-                          (PLATFORM === "web"
-                            ? WEB_VALUE_STEP
-                            : MOBILE_VALUE_STEP);
-                        const xPos = (val / MAX_LIFESPAN) * chartWidth;
-                        return (
-                          <SvgText
-                            key={`label-${i}`}
-                            x={xPos}
-                            y={chartHeight + X_AXIS_HEIGHT + 15}
-                            fill={AXIS_COLOR}
-                            fontSize="12"
-                            textAnchor="middle"
-                          >
-                            {val}
-                          </SvgText>
-                        );
-                      })}
+                      {tickLabels.map(({ key, x, y, value }) => (
+                        <SvgText
+                          key={key}
+                          x={x}
+                          y={y}
+                          fill={AXIS_COLOR}
+                          fontSize={TICK_FONT_SIZE}
+                          textAnchor="middle"
+                        >
+                          {value}
+                        </SvgText>
+                      ))}
 
                       {/* Data Bars */}
-                      {displayedData.map(
-                        (item, index) =>
-                          item.visible && (
-                            <BatteryBar
-                              key={`bar-${index}-${item.lifespan}`}
-                              item={item}
-                              index={index}
-                              chartWidth={chartWidth}
-                              rangeStartX={rangeTool.rangeStartX}
-                              rangeEndX={rangeTool.rangeEndX}
-                              tool={chartControls.rangeToolActive}
-                              dotsOnly={chartControls.showDotsOnly}
-                              maxLifespan={MAX_LIFESPAN}
-                              onBarPress={handleBarPress}
-                            />
-                          ),
-                      )}
+                      {visibleBarsToRender.map(({ item, index }) => (
+                        <BatteryBar
+                          key={`bar-${index}-${item.lifespan}`}
+                          item={item}
+                          index={index}
+                          chartWidth={chartWidth}
+                          rangeStartX={rangeTool.rangeStartX}
+                          rangeEndX={rangeTool.rangeEndX}
+                          tool={chartControls.rangeToolActive}
+                          dotsOnly={chartControls.showDotsOnly}
+                          maxLifespan={MAX_LIFESPAN}
+                          onBarPress={handleBarPress}
+                        />
+                      ))}
 
                       {/* --- Range tool (3 Line, 3 rectangles) - rendered by RangeTool hook --- */}
                       {rangeTool.renderRangeTool()}
@@ -1126,6 +1224,7 @@ const styles = StyleSheet.create({
     width: "100%",
     position: "relative",
     minHeight: 100,
+    zIndex: 10,
   },
   xAxisTitle: {
     fontSize: 12,

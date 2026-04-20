@@ -69,18 +69,19 @@ const BatteryBar = ({
           width={barEndPosition}
           height={BAR_HEIGHT}
           fill={barColor}
+          onPress={handlePress}
         />
       )}
-      {!dotsOnly && (
+      {/* {!dotsOnly && (
         <Rect
           x="0"
           y={yPos}
-          width={Math.max(barEndPosition, 30)}
+          width={Math.max(barEndPosition + 20, 30)}
           height={BAR_HEIGHT + 10}
           fill="transparent"
           onPress={handlePress}
         />
-      )}
+      )} */}
       <Circle
         cx={barEndPosition}
         cy={yPos + BAR_HEIGHT / 2}

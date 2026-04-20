@@ -1,5 +1,4 @@
 import React, { useCallback } from "react";
-import { Platform } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   useSharedValue,
@@ -44,18 +43,19 @@ const useValueTool = ({
       const newTranslateX = (currentToolValue / maxLifespan) * chartWidth;
       translateX.value = newTranslateX;
     },
-    [maxLifespan, chartWidth]
+    [maxLifespan, chartWidth],
   );
 
   const panGesture = Gesture.Pan()
-    .onStart(() => {
+    .activeOffsetX([0, 0])
+    .onBegin(() => {
       context.value = { x: translateX.value };
     })
     .onUpdate((event) => {
       translateX.value = clamp(
         event.translationX + context.value.x,
         0,
-        chartWidth
+        chartWidth,
       );
     });
 
@@ -87,14 +87,14 @@ const useValueTool = ({
       const newValue = (currentValue / chartWidth) * maxLifespan;
       runOnJS(onValueChange)(newValue);
     },
-    [chartWidth, maxLifespan]
+    [chartWidth, maxLifespan],
   );
 
   const handleToggle = useCallback(
     (newValue) => {
       onActiveChange(newValue);
     },
-    [onActiveChange]
+    [onActiveChange],
   );
 
   // --- Render component ---
@@ -107,44 +107,15 @@ const useValueTool = ({
         strokeWidth="2"
         animatedProps={animatedValueLineProps}
       />
-      {/* {Platform.OS === "web" && isActive ? ( */}
-      <AnimatedRect
-        y={chartHeight + X_AXIS_HEIGHT}
-        height="15"
-        width="15"
-        fill={toolColor}
-        animatedProps={animatedToolProps}
-        onMouseDown={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const startX = e.nativeEvent.pageX;
-          const initialTranslate = translateX.value;
-
-          const handleMouseMove = (moveEvent) => {
-            const deltaX = moveEvent.pageX - startX;
-            translateX.value = clamp(initialTranslate + deltaX, 0, chartWidth);
-          };
-
-          const handleMouseUp = () => {
-            document.removeEventListener("mousemove", handleMouseMove);
-            document.removeEventListener("mouseup", handleMouseUp);
-          };
-
-          document.addEventListener("mousemove", handleMouseMove);
-          document.addEventListener("mouseup", handleMouseUp);
-        }}
-      />
-      {/* ) : (
-        <GestureDetector gesture={panGesture} enabled={isActive}>
-          <AnimatedRect
-            y={chartHeight}
-            height="15"
-            width="15"
-            fill={toolColor}
-            animatedProps={animatedToolProps}
-          />
-        </GestureDetector>
-      )} */}
+      <GestureDetector gesture={panGesture}>
+        <AnimatedRect
+          y={chartHeight + X_AXIS_HEIGHT}
+          height="20"
+          width="20"
+          fill={toolColor}
+          animatedProps={animatedToolProps}
+        />
+      </GestureDetector>
     </AnimatedG>
   );
 

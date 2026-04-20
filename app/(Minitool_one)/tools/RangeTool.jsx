@@ -1,5 +1,4 @@
 import React, { useCallback } from "react";
-import { Platform } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   useSharedValue,
@@ -44,7 +43,8 @@ const useRangeTool = ({
   const rangeContext = useSharedValue({ start: 0, end: 0 });
 
   const movePanGesture = Gesture.Pan()
-    .onStart(() => {
+    .activeOffsetX([0, 0])
+    .onBegin(() => {
       rangeContext.value = { start: rangeStartX.value, end: rangeEndX.value };
     })
     .onUpdate((event) => {
@@ -52,33 +52,35 @@ const useRangeTool = ({
       const newStart = clamp(
         rangeContext.value.start + event.translationX,
         0,
-        chartWidth - rangeWidth
+        chartWidth - rangeWidth,
       );
       rangeStartX.value = newStart;
       rangeEndX.value = newStart + rangeWidth;
     });
 
   const leftHandlePanGesture = Gesture.Pan()
-    .onStart(() => {
+    .activeOffsetX([0, 0])
+    .onBegin(() => {
       rangeContext.value = { start: rangeStartX.value, end: rangeEndX.value };
     })
     .onUpdate((event) => {
       rangeStartX.value = clamp(
         rangeContext.value.start + event.translationX,
         0,
-        rangeEndX.value - rangeHandleSize
+        rangeEndX.value - rangeHandleSize,
       );
     });
 
   const rightHandlePanGesture = Gesture.Pan()
-    .onStart(() => {
+    .activeOffsetX([0, 0])
+    .onBegin(() => {
       rangeContext.value = { start: rangeStartX.value, end: rangeEndX.value };
     })
     .onUpdate((event) => {
       rangeEndX.value = clamp(
         rangeContext.value.end + event.translationX,
         rangeStartX.value + rangeHandleSize,
-        chartWidth
+        chartWidth,
       );
     });
 
@@ -137,7 +139,7 @@ const useRangeTool = ({
           (item) =>
             item.visible &&
             item.lifespan >= minLifespanValue &&
-            item.lifespan <= maxLifespanValue
+            item.lifespan <= maxLifespanValue,
         ).length;
         runOnJS(onCountChange)(count);
         if (onRangeChange) {
@@ -148,14 +150,14 @@ const useRangeTool = ({
         }
       }
     },
-    [chartWidth, maxLifespan, displayedData]
+    [chartWidth, maxLifespan, displayedData],
   );
 
   const handleToggle = useCallback(
     (newValue) => {
       onActiveChange(newValue);
     },
-    [onActiveChange]
+    [onActiveChange],
   );
 
   // --- Render component ---
@@ -184,132 +186,32 @@ const useRangeTool = ({
       />
 
       {/* --- Rectangles - gesture handlers --- */}
-      {/* {Platform.OS === "web" && isActive ? ( */}
-      <>
+      <GestureDetector gesture={leftHandlePanGesture}>
         <AnimatedRect
           y={chartHeight + X_AXIS_HEIGHT}
           width={rangeHandleSize}
           height={rangeHandleSize}
           fill={rangeToolColor}
           animatedProps={animatedLeftHandleProps}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            const startX = e.nativeEvent.pageX;
-            const initialStart = rangeStartX.value;
-
-            const handleMouseMove = (moveEvent) => {
-              const deltaX = moveEvent.pageX - startX;
-              rangeStartX.value = clamp(
-                initialStart + deltaX,
-                0,
-                rangeEndX.value - rangeHandleSize
-              );
-            };
-
-            const handleMouseUp = () => {
-              document.removeEventListener("mousemove", handleMouseMove);
-              document.removeEventListener("mouseup", handleMouseUp);
-            };
-
-            document.addEventListener("mousemove", handleMouseMove);
-            document.addEventListener("mouseup", handleMouseUp);
-          }}
         />
+      </GestureDetector>
+      <GestureDetector gesture={rightHandlePanGesture}>
         <AnimatedRect
           y={chartHeight + X_AXIS_HEIGHT}
           width={rangeHandleSize}
           height={rangeHandleSize}
           fill={rangeToolColor}
           animatedProps={animatedRightHandleProps}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            const startX = e.nativeEvent.pageX;
-            const initialEnd = rangeEndX.value;
-
-            const handleMouseMove = (moveEvent) => {
-              const deltaX = moveEvent.pageX - startX;
-              rangeEndX.value = clamp(
-                initialEnd + deltaX,
-                rangeStartX.value + rangeHandleSize,
-                chartWidth
-              );
-            };
-
-            const handleMouseUp = () => {
-              document.removeEventListener("mousemove", handleMouseMove);
-              document.removeEventListener("mouseup", handleMouseUp);
-            };
-
-            document.addEventListener("mousemove", handleMouseMove);
-            document.addEventListener("mouseup", handleMouseUp);
-          }}
         />
+      </GestureDetector>
+      <GestureDetector gesture={movePanGesture}>
         <AnimatedRect
           y="0"
           height={chartHeight}
           fill="transparent"
           animatedProps={animatedMoveHandleProps}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            const startX = e.nativeEvent.pageX;
-            const initialStart = rangeStartX.value;
-            const initialEnd = rangeEndX.value;
-            const rangeWidth = initialEnd - initialStart;
-
-            const handleMouseMove = (moveEvent) => {
-              const deltaX = moveEvent.pageX - startX;
-              const newStart = clamp(
-                initialStart + deltaX,
-                0,
-                chartWidth - rangeWidth
-              );
-              rangeStartX.value = newStart;
-              rangeEndX.value = newStart + rangeWidth;
-            };
-
-            const handleMouseUp = () => {
-              document.removeEventListener("mousemove", handleMouseMove);
-              document.removeEventListener("mouseup", handleMouseUp);
-            };
-
-            document.addEventListener("mousemove", handleMouseMove);
-            document.addEventListener("mouseup", handleMouseUp);
-          }}
         />
-      </>
-      {/* ) : (
-        <>
-          <GestureDetector gesture={leftHandlePanGesture} enabled={isActive}>
-            <AnimatedRect
-              y={chartHeight}
-              width={rangeHandleSize}
-              height={rangeHandleSize}
-              fill={rangeToolColor}
-              animatedProps={animatedLeftHandleProps}
-            />
-          </GestureDetector>
-          <GestureDetector gesture={rightHandlePanGesture} enabled={isActive}>
-            <AnimatedRect
-              y={chartHeight}
-              width={rangeHandleSize}
-              height={rangeHandleSize}
-              fill={rangeToolColor}
-              animatedProps={animatedRightHandleProps}
-            />
-          </GestureDetector>
-          <GestureDetector gesture={movePanGesture} enabled={isActive}>
-            <AnimatedRect
-              y="0"
-              height={chartHeight}
-              fill="transparent"
-              animatedProps={animatedMoveHandleProps}
-            />
-          </GestureDetector>
-        </>
-      )} */}
+      </GestureDetector>
     </AnimatedG>
   );
 

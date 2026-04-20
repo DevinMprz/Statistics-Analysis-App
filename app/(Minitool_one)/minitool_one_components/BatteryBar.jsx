@@ -11,7 +11,7 @@ const DOT_COLOR = "#000";
 const RANGE_HIGHLIGHT_COLOR = "#ff0000";
 const TOUGH_CELL_COLOR = "#33cc33";
 const ALWAYS_READY_COLOR = "#cc00ff";
-const MAX_LIFESPAN = 140;
+const MAX_LIFESPAN = 120;
 const BAR_SPACING = 7;
 
 const BatteryBar = ({
@@ -21,6 +21,8 @@ const BatteryBar = ({
   rangeStartX,
   rangeEndX,
   tool,
+  dotsOnly,
+  onBarPress,
 }) => {
   const yPos = index * (BAR_HEIGHT + BAR_SPACING);
   const originalColor =
@@ -49,18 +51,36 @@ const BatteryBar = ({
         runOnJS(setBarColor)(originalColor);
       }
     },
-    [barEndPosition, originalColor, tool]
+    [barEndPosition, originalColor, tool],
   );
+
+  const handlePress = () => {
+    if (onBarPress) {
+      onBarPress(index, item);
+    }
+  };
 
   return (
     <G>
-      <AnimatedRect
-        x="0"
-        y={yPos}
-        width={barEndPosition}
-        height={BAR_HEIGHT}
-        fill={barColor}
-      />
+      {!dotsOnly && (
+        <AnimatedRect
+          x="0"
+          y={yPos}
+          width={barEndPosition}
+          height={BAR_HEIGHT}
+          fill={barColor}
+        />
+      )}
+      {!dotsOnly && (
+        <Rect
+          x="0"
+          y={yPos}
+          width={Math.max(barEndPosition, 30)}
+          height={BAR_HEIGHT + 10}
+          fill="transparent"
+          onPress={handlePress}
+        />
+      )}
       <Circle
         cx={barEndPosition}
         cy={yPos + BAR_HEIGHT / 2}

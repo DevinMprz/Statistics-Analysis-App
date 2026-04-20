@@ -11,7 +11,7 @@ import {
 import * as DocumentPicker from "expo-document-picker";
 
 // Point this at your backend server
-const API_URL = "http://localhost:5000/api/scenarios/upload";
+const API_URL = "http://localhost:5000/api/datasets/upload";
 
 /**
  * UploadDataset

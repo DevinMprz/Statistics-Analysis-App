@@ -38,6 +38,7 @@ import useBarGenerationModal from "./modals/BarGenerationModal";
 import BarInfoModal from "./modals/BarInfoModal";
 import useDimensions from "../hooks/useDimensions";
 import UniverseButton from "../../components/universeButton";
+import Dropdown from "../../components/dropDown";
 
 // --- Configuration ---
 const MIN_BATTERY_COUNT_VALUE = 1;
@@ -58,7 +59,7 @@ const PLATFORM = Platform.OS;
 const MOBILE_TICKS = 4;
 const TABLET_TICKS = 6;
 const WEB_TICKS = 10;
-const MOBILE_VALUE_STEP = 39;
+const MOBILE_VALUE_STEP = 26;
 const TABLET_VALUE_STEP = 26;
 const WEB_VALUE_STEP = 13;
 const PADDING = 10;
@@ -91,8 +92,8 @@ const Minitool_1 = () => {
   // --- Responsive Layout (memoized) ---
   const { isMobile, isTablet, isDesktop, EFFECTIVE_SIDEBAR_WIDTH } =
     useMemo(() => {
-      const mobile = width < 480;
-      const tablet = width >= 480 && width < 850;
+      const mobile = width <= 480;
+      const tablet = width > 480 && width < 850;
       const desktop = width >= 850;
       let sidebarWidth = SIDEBAR_WIDTH; // Desktop default (120px)
       if (mobile) {
@@ -146,7 +147,7 @@ const Minitool_1 = () => {
         : 0;
     return { visibleBars: visible, minLifespan: min, maxLifespan: max };
   }, [displayedData]);
-  const barCount = 20;
+  const barCount = displayedData.filter((item) => item.visible).length;
 
   // --- Chart dimensions and tick configuration (memoized) ---
   const {
@@ -154,28 +155,29 @@ const Minitool_1 = () => {
     SVG_HEIGHT,
     SVG_WIDTH,
     chartWidth,
+    dynamicMax,
     TICKS_COUNT,
     VALUE_STEP,
     TICK_FONT_SIZE,
   } = useMemo(() => {
-    const height = Math.max(10, barCount * (BAR_HEIGHT + 2 * BAR_SPACING));
+    const height = Math.max(10, 20 * (BAR_HEIGHT + 2 * BAR_SPACING));
     const svgHeight = height + X_AXIS_HEIGHT + TOP_BUFFER;
 
-    // 1. Account for the 10px margins on each side of the sidebar (20px total)
+    const maxValInData =
+      displayedData.length > 0
+        ? Math.max(...displayedData.map((d) => d.lifespan))
+        : 100;
+    const dynamicMax = maxValInData * 1.01;
+
     const sidebarMargins = isDesktop ? 20 : 0;
 
     const available =
       width - PADDING * 2 - EFFECTIVE_SIDEBAR_WIDTH - sidebarMargins;
 
-    // 2. Ensure we have a small internal buffer so the "dot" isn't touching the edge
-    const rightInternalBuffer = 20;
-
     const svgWidth =
       isMobile || isTablet ? Math.max(available, 500) : available;
-
-    // 3. Subtract that internal buffer from the chartWidth
-    const cWidth = svgWidth - Y_AXIS_WIDTH - rightInternalBuffer;
-
+    // The chartWidth is the actual length of the X-Axis line
+    const cWidth = svgWidth - 80;
     // Determine ticks based on device type
     let ticksCount = WEB_TICKS;
     let valueStep = WEB_VALUE_STEP;
@@ -195,20 +197,29 @@ const Minitool_1 = () => {
       SVG_HEIGHT: svgHeight,
       SVG_WIDTH: svgWidth,
       chartWidth: cWidth,
+      dynamicMax: dynamicMax,
       TICKS_COUNT: ticksCount,
       VALUE_STEP: valueStep,
       TICK_FONT_SIZE: tickFontSize,
     };
-  }, [width, isDesktop, isTablet, isMobile, EFFECTIVE_SIDEBAR_WIDTH, barCount]);
+  }, [
+    width,
+    isDesktop,
+    isTablet,
+    isMobile,
+    EFFECTIVE_SIDEBAR_WIDTH,
+    barCount,
+    displayedData,
+  ]);
 
   // --- Initial values for tools (memoized) ---
   const { initialTranslateX, initialRangeStartX, initialRangeEndX } = useMemo(
     () => ({
-      initialTranslateX: (80.0 / MAX_LIFESPAN) * chartWidth,
-      initialRangeStartX: (102 / MAX_LIFESPAN) * chartWidth,
-      initialRangeEndX: (126 / MAX_LIFESPAN) * chartWidth,
+      initialTranslateX: (80.0 / dynamicMax) * chartWidth,
+      initialRangeStartX: (52 / dynamicMax) * chartWidth,
+      initialRangeEndX: (56 / dynamicMax) * chartWidth,
     }),
-    [chartWidth],
+    [chartWidth, dynamicMax],
   );
 
   // --- Value Tool Gesture Logic (extracted to useValueTool hook) ---
@@ -218,11 +229,11 @@ const Minitool_1 = () => {
     onValueChange: setToolValue,
     chartWidth,
     chartHeight,
-    maxLifespan: MAX_LIFESPAN,
+    maxLifespan: dynamicMax,
     toolValue,
     toolColor: TOOL_COLOR,
     X_AXIS_HEIGHT: X_AXIS_HEIGHT,
-    onGestureStateChange: (enabled) => setIsScrollEnabled(enabled),
+    TOP_BUFFER: TOP_BUFFER,
   });
 
   // --- Range Tool Gesture Logic (extracted to useRangeTool hook) ---
@@ -232,14 +243,14 @@ const Minitool_1 = () => {
     onCountChange: setRangeCount,
     chartWidth,
     chartHeight,
-    maxLifespan: MAX_LIFESPAN,
-    initialStartValue: 102,
-    initialEndValue: 126,
+    maxLifespan: dynamicMax,
+    initialStartValue: 52,
+    initialEndValue: 56,
     rangeHandleSize: RANGE_HANDLE_SIZE,
     rangeToolColor: RANGE_TOOL_COLOR,
     displayedData,
     X_AXIS_HEIGHT: X_AXIS_HEIGHT,
-    onGestureStateChange: (enabled) => setIsScrollEnabled(enabled),
+    TOP_BUFFER: TOP_BUFFER,
   });
 
   // --- Data Generation Modal Hook (initialized after tools) ---
@@ -294,7 +305,7 @@ const Minitool_1 = () => {
 
       // Apply sorting
       if (chartControls.isSortedBySize) {
-        dataToDisplay.sort((a, b) => a.lifespan - b.lifespan);
+        dataToDisplay.sort((a, b) => b.lifespan - a.lifespan);
       } else if (chartControls.isSortedByColor) {
         dataToDisplay.sort((a, b) => a.brand.localeCompare(b.brand));
       }
@@ -492,17 +503,23 @@ const Minitool_1 = () => {
     const labels = [];
     for (let i = 0; i < TICKS_COUNT; i++) {
       const val = i * VALUE_STEP;
-      if (val > MAX_LIFESPAN) break;
-      const xPos = (val / MAX_LIFESPAN) * chartWidth;
+      if (val >= dynamicMax.toFixed(0)) break;
+      const xPos = (val / dynamicMax) * chartWidth;
       labels.push({
         key: `label-${i}`,
         x: xPos,
-        y: chartHeight + X_AXIS_HEIGHT + 15,
+        y: chartHeight + X_AXIS_HEIGHT + TOP_BUFFER / 2,
         value: val,
       });
     }
+    labels.push({
+      key: `label-${labels.length}`,
+      x: chartWidth,
+      y: chartHeight + X_AXIS_HEIGHT + TOP_BUFFER / 2,
+      value: dynamicMax.toFixed(0),
+    });
     return labels;
-  }, [TICKS_COUNT, VALUE_STEP, MAX_LIFESPAN, chartWidth, chartHeight]);
+  }, [TICKS_COUNT, VALUE_STEP, dynamicMax, chartWidth, chartHeight]);
 
   // --- Memoized visible bars rendering ---
   const visibleBarsToRender = useMemo(() => {
@@ -674,8 +691,16 @@ const Minitool_1 = () => {
               isTablet && styles.scenarioPickerTablet,
             ]}
           >
-            <Text style={styles.pickerLabel}>Select Scenario:</Text>
-            <RNPickerSelect
+            {/* <Text style={styles.pickerLabel}>Select Scenario:</Text> */}
+            <Dropdown
+              data={scenarios.map((scenario) => ({
+                label: scenario.name,
+                value: scenario._id,
+              }))}
+              onChange={handleLoadScenarioFromDropdown}
+              placeholder="Select scenario"
+            />
+            {/* <RNPickerSelect
               placeholder={{
                 label: "Choose a scenario to load",
                 value: null,
@@ -688,9 +713,9 @@ const Minitool_1 = () => {
               style={pickerSelectStyles}
               value={selectedScenarioId}
               useNativeAndroidPickerStyle={false}
-            />
+            /> */}
             {/* Selection Feedback Effect */}
-            {scenarioSelectedFeedback && (
+            {/* {scenarioSelectedFeedback && (
               <View
                 style={{
                   marginTop: 8,
@@ -712,7 +737,7 @@ const Minitool_1 = () => {
                   ✓ Scenario "{loadedScenarioName}" loaded successfully!
                 </Text>
               </View>
-            )}
+            )} */}
           </View>
 
           {/* Buttons Layout */}
@@ -756,7 +781,7 @@ const Minitool_1 = () => {
             <View
               style={[
                 {
-                  width: "100%",
+                  width: "95%",
                   alignItems: "flex-start",
                   flexDirection: "row",
                 },
@@ -785,7 +810,6 @@ const Minitool_1 = () => {
                   <Animated.View
                     style={[
                       styles.toolLabelContainer,
-                      { left: Y_AXIS_WIDTH, top: TOP_BUFFER },
                       valueTool.animatedLabelStyle,
                     ]}
                   >
@@ -812,21 +836,21 @@ const Minitool_1 = () => {
                     height={SVG_HEIGHT + X_AXIS_HEIGHT}
                     style={{ zIndex: 1 }}
                   >
-                    <G x={Y_AXIS_WIDTH} y={TOP_BUFFER}>
+                    <G>
                       {/* X-Axis */}
                       <Line
                         x1="0"
-                        y1={chartHeight + X_AXIS_HEIGHT}
+                        y1={chartHeight + X_AXIS_HEIGHT + TOP_BUFFER}
                         x2={chartWidth}
-                        y2={chartHeight + X_AXIS_HEIGHT}
+                        y2={chartHeight + X_AXIS_HEIGHT + TOP_BUFFER}
                         stroke={AXIS_COLOR}
                         strokeWidth="1"
                       />
                       {tickLabels.map(({ key, x, y, value }) => (
                         <SvgText
                           key={key}
-                          x={x}
-                          y={y}
+                          x={x + 5}
+                          y={y + TOP_BUFFER}
                           fill={AXIS_COLOR}
                           fontSize={TICK_FONT_SIZE}
                           textAnchor="middle"
@@ -846,8 +870,9 @@ const Minitool_1 = () => {
                           rangeEndX={rangeTool.rangeEndX}
                           tool={chartControls.rangeToolActive}
                           dotsOnly={chartControls.showDotsOnly}
-                          maxLifespan={MAX_LIFESPAN}
+                          MAX_LIFESPAN={dynamicMax}
                           onBarPress={handleBarPress}
+                          TOP_BUFFER={TOP_BUFFER}
                         />
                       ))}
 
@@ -856,16 +881,17 @@ const Minitool_1 = () => {
 
                       {/* --- Value tool(1 line, 1 rectangle) - rendered by ValueTool hook --- */}
                       {valueTool.renderValueTool()}
+
+                      {/* Y-Axis */}
+                      <Line
+                        x1={0}
+                        y1={0}
+                        x2={0}
+                        y2={chartHeight + X_AXIS_HEIGHT + TOP_BUFFER}
+                        stroke={AXIS_COLOR}
+                        strokeWidth="1"
+                      />
                     </G>
-                    {/* Y-Axis */}
-                    <Line
-                      x1={Y_AXIS_WIDTH}
-                      y1={TOP_BUFFER}
-                      x2={Y_AXIS_WIDTH}
-                      y2={chartHeight + X_AXIS_HEIGHT + TOP_BUFFER}
-                      stroke={AXIS_COLOR}
-                      strokeWidth="1"
-                    />
                   </Svg>
                 </View>
               </ScrollView>
@@ -898,7 +924,6 @@ const Minitool_1 = () => {
                     justifyContent: "space-between",
                     borderRadius: 12,
                     marginLeft: 10,
-                    marginRight: 10,
                     marginTop: X_AXIS_HEIGHT / 2,
                   }}
                 >
@@ -1157,6 +1182,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 15,
     flexWrap: "wrap",
+    width: "95%",
   },
   legendItem: {
     flexDirection: "row",
@@ -1232,9 +1258,12 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   toolLabelContainer: {
+    left: -Y_AXIS_WIDTH / 2,
+    top: 0,
     position: "absolute",
     height: TOOL_LABEL_OFFSET_Y,
     alignItems: "center",
+    justifyContent: "center",
     zIndex: 15,
   },
   toolLabelText: {
@@ -1246,10 +1275,12 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   rangeLabelContainer: {
+    left: Y_AXIS_WIDTH / 2,
+    top: -X_AXIS_HEIGHT / 2,
     position: "absolute",
-    top: 0,
-    height: RANGE_LABEL_OFFSET_Y,
+    height: RANGE_LABEL_OFFSET_Y + TOP_BUFFER,
     alignItems: "center",
+    justifyContent: "center",
     zIndex: 10,
   },
   rangeLabelText: {
@@ -1282,7 +1313,8 @@ const styles = StyleSheet.create({
     marginLeft: 15,
     flex: 1,
     flexWrap: "wrap",
-    marginTop: 25,
+    marginTop: 6,
+    marginBottom: 6,
   },
   topButton: {
     minWidth: 140,
@@ -1302,11 +1334,12 @@ const styles = StyleSheet.create({
     width: "95%",
     alignSelf: "center",
     marginLeft: 0,
-    marginTop: 0,
+    marginTop: 25,
   },
   chartAndStatsMobile: {
     flexDirection: "column",
     marginTop: 20,
+    width: "95%",
   },
   statsBarMobile: {
     width: "95%",

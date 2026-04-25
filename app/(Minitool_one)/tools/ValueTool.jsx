@@ -30,6 +30,7 @@ const useValueTool = ({
   toolValue = 80.0,
   toolColor = "red",
   X_AXIS_HEIGHT,
+  TOP_BUFFER,
 }) => {
   // --- Value Tool Gesture Logic ---
   const initialTranslateX = (toolValue / maxLifespan) * chartWidth;
@@ -102,16 +103,16 @@ const useValueTool = ({
     <AnimatedG animatedProps={valueToolContainerAnimatedProps}>
       <AnimatedLine
         y1={-5}
-        y2={chartHeight + X_AXIS_HEIGHT}
+        y2={chartHeight + X_AXIS_HEIGHT + TOP_BUFFER}
         stroke={toolColor}
         strokeWidth="2"
         animatedProps={animatedValueLineProps}
       />
       <GestureDetector gesture={panGesture}>
         <AnimatedRect
-          y={chartHeight + X_AXIS_HEIGHT}
-          height="20"
-          width="20"
+          y={chartHeight + X_AXIS_HEIGHT + TOP_BUFFER}
+          height="15"
+          width="15"
           fill={toolColor}
           animatedProps={animatedToolProps}
         />

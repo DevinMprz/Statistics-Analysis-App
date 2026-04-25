@@ -11,7 +11,7 @@ const DOT_COLOR = "#000";
 const RANGE_HIGHLIGHT_COLOR = "#ff0000";
 const TOUGH_CELL_COLOR = "#33cc33";
 const ALWAYS_READY_COLOR = "#cc00ff";
-const MAX_LIFESPAN = 120;
+//const MAX_LIFESPAN = 120;
 const BAR_SPACING = 7;
 
 const BatteryBar = ({
@@ -23,8 +23,10 @@ const BatteryBar = ({
   tool,
   dotsOnly,
   onBarPress,
+  TOP_BUFFER,
+  MAX_LIFESPAN,
 }) => {
-  const yPos = index * (BAR_HEIGHT + BAR_SPACING);
+  const yPos = (19 - index) * (BAR_HEIGHT + BAR_SPACING);
   const originalColor =
     item.brand === "Tough Cell" ? TOUGH_CELL_COLOR : ALWAYS_READY_COLOR;
   const [barColor, setBarColor] = useState(originalColor);
@@ -65,7 +67,7 @@ const BatteryBar = ({
       {!dotsOnly && (
         <AnimatedRect
           x="0"
-          y={yPos}
+          y={yPos + TOP_BUFFER}
           width={barEndPosition}
           height={BAR_HEIGHT}
           fill={barColor}
@@ -84,7 +86,7 @@ const BatteryBar = ({
       )} */}
       <Circle
         cx={barEndPosition}
-        cy={yPos + BAR_HEIGHT / 2}
+        cy={yPos + BAR_HEIGHT / 2 + TOP_BUFFER}
         r="4"
         fill={DOT_COLOR}
       />

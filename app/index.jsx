@@ -35,7 +35,7 @@ export default function App() {
           />
           <CustomButton
             title="Minitool2"
-            handlePress={() => router.push("/cholesterol")}
+            hadlePress={() => router.push("/cholesterol")}
             containerStyles="w-full mt-7"
           />
           <CustomButton

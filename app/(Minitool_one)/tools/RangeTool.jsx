@@ -34,6 +34,7 @@ const useRangeTool = ({
   rangeToolColor = "#0000FF",
   displayedData = [],
   X_AXIS_HEIGHT,
+  TOP_BUFFER,
 }) => {
   // --- Range Tool Gesture Logic ---
   const initialRangeStartX = (initialStartValue / maxLifespan) * chartWidth;
@@ -115,7 +116,10 @@ const useRangeTool = ({
 
   // --- Animation for label ---
   const animatedRangeLabelStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: (rangeStartX.value + rangeEndX.value) / 2 }],
+    transform: [
+      { translateX: (rangeStartX.value + rangeEndX.value) / 2 },
+      { translateX: -50 }, // Offset to center the label horizontally
+    ],
     opacity: withTiming(isActive ? 1 : 0),
   }));
 
@@ -165,21 +169,22 @@ const useRangeTool = ({
     <AnimatedG animatedProps={rangeToolContainerAnimatedProps}>
       <AnimatedRect
         y="0"
-        height={chartHeight + X_AXIS_HEIGHT}
+        height={chartHeight + X_AXIS_HEIGHT + TOP_BUFFER}
         fill={rangeToolColor}
         opacity="0.2"
+        pointerEvents="none"
         animatedProps={animatedRangeRectProps}
       />
       <AnimatedLine
         y1="0"
-        y2={chartHeight + X_AXIS_HEIGHT}
+        y2={chartHeight + X_AXIS_HEIGHT + TOP_BUFFER}
         stroke={rangeToolColor}
         strokeWidth="2"
         animatedProps={animatedRangeLeftLineProps}
       />
       <AnimatedLine
         y1="0"
-        y2={chartHeight + X_AXIS_HEIGHT}
+        y2={chartHeight + X_AXIS_HEIGHT + TOP_BUFFER}
         stroke={rangeToolColor}
         strokeWidth="2"
         animatedProps={animatedRangeRightLineProps}
@@ -188,7 +193,7 @@ const useRangeTool = ({
       {/* --- Rectangles - gesture handlers --- */}
       <GestureDetector gesture={leftHandlePanGesture}>
         <AnimatedRect
-          y={chartHeight + X_AXIS_HEIGHT}
+          y={chartHeight + X_AXIS_HEIGHT + TOP_BUFFER}
           width={rangeHandleSize}
           height={rangeHandleSize}
           fill={rangeToolColor}
@@ -197,7 +202,7 @@ const useRangeTool = ({
       </GestureDetector>
       <GestureDetector gesture={rightHandlePanGesture}>
         <AnimatedRect
-          y={chartHeight + X_AXIS_HEIGHT}
+          y={chartHeight + X_AXIS_HEIGHT + TOP_BUFFER}
           width={rangeHandleSize}
           height={rangeHandleSize}
           fill={rangeToolColor}
@@ -206,9 +211,9 @@ const useRangeTool = ({
       </GestureDetector>
       <GestureDetector gesture={movePanGesture}>
         <AnimatedRect
-          y="0"
-          height={chartHeight}
-          fill="transparent"
+          y={chartHeight + X_AXIS_HEIGHT + TOP_BUFFER}
+          height={rangeHandleSize}
+          fill={rangeToolColor}
           animatedProps={animatedMoveHandleProps}
         />
       </GestureDetector>

@@ -754,13 +754,17 @@ const Minitool_1 = () => {
                 alert("This is a mock button for the upload functionality.")
               }
               colorScheme="primary"
-              containerStyles={styles.topButton}
+              containerStyles={
+                isMobile ? styles.topButtonMobile : styles.topButton
+              }
             />
             <UniverseButton
               title="ADD BAR"
               onPress={handleAddBarButtonPress}
               colorScheme="primary"
-              containerStyles={styles.topButton}
+              containerStyles={
+                isMobile ? styles.topButtonMobile : styles.topButton
+              }
             />
             <UniverseButton
               title={"Generate"}
@@ -770,7 +774,9 @@ const Minitool_1 = () => {
                 dataGenerationModal.handleOpenModal();
               }}
               colorScheme="primary"
-              containerStyles={styles.topButton}
+              containerStyles={
+                isMobile ? styles.topButtonMobile : styles.topButton
+              }
             />
           </View>
         </View>
@@ -1316,9 +1322,25 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: 6,
   },
+  topButtonsContainerMobile: {
+    gap: 4,
+    flex: 1,
+    flexWrap: "wrap",
+    width: "95%",
+    alignSelf: "center",
+    marginLeft: 0,
+  },
   topButton: {
     minWidth: 140,
     flex: 1,
+    minHeight: 40,
+    paddingHorizontal: 30,
+  },
+  topButtonMobile: {
+    minWidth: 100,
+    flex: 1,
+    minHeight: 30,
+    paddingHorizontal: 15,
   },
   // --- Mobile Responsive Styles ---
   scenarioLoaderMobile: {
@@ -1329,12 +1351,6 @@ const styles = StyleSheet.create({
     width: "95%",
     alignSelf: "center",
     marginBottom: 0,
-  },
-  topButtonsContainerMobile: {
-    width: "95%",
-    alignSelf: "center",
-    marginLeft: 0,
-    marginTop: 25,
   },
   chartAndStatsMobile: {
     flexDirection: "column",

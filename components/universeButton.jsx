@@ -51,45 +51,42 @@ const UniverseButton = ({
   };
 
   const schemeStyles = getColorStyles();
-  const isActive = isHovered && !disabled;
 
   return (
+    // Inside UniverseButton.jsx
     <Pressable
       onPress={onPress}
       disabled={disabled}
-      // Mouse interactions for Web
       onHoverIn={() => setIsHovered(true)}
       onHoverOut={() => setIsHovered(false)}
-      style={({ pressed }) => {
-        const currentActiveState = (pressed || isHovered) && !disabled;
-
-        return [
-          styles.baseButton,
-          // Apply inactive color scheme
-          !currentActiveState && schemeStyles.inactive,
-          // Apply active/hovered style and color scheme
-          currentActiveState && [styles.buttonActiveBase, schemeStyles.active],
-          // Apply transform lift only on actual press
-          pressed && !disabled && { transform: [{ translateY: -2 }] },
-          containerStyles,
-        ];
-      }}
+      style={styles.pressableWrapper}
     >
       {({ pressed }) => {
         const currentActiveState = (pressed || isHovered) && !disabled;
 
+        const buttonDynamicStyles = [
+          styles.baseButton,
+          !currentActiveState
+            ? schemeStyles.inactive
+            : [styles.buttonActiveBase, schemeStyles.active],
+          pressed && !disabled && styles.pressedTransform,
+          containerStyles,
+        ];
+
         return (
-          <Text
-            style={[
-              styles.baseText,
-              // Invert text color if Pressed or Hovered
-              !currentActiveState && schemeStyles.textInactive,
-              currentActiveState && schemeStyles.textActive,
-              textStyles,
-            ]}
-          >
-            {title}
-          </Text>
+          <View style={buttonDynamicStyles}>
+            <Text
+              style={[
+                styles.baseText,
+                // Invert text color if Pressed or Hovered
+                !currentActiveState && schemeStyles.textInactive,
+                currentActiveState && schemeStyles.textActive,
+                textStyles,
+              ]}
+            >
+              {title}
+            </Text>
+          </View>
         );
       }}
     </Pressable>
@@ -97,8 +94,8 @@ const UniverseButton = ({
 };
 
 // Colors based on your tool's existing palette
-const COLOR_PRIMARY_DARK = "#1e3a8a"; // Matches existing dark blue text
-const COLOR_PRIMARY_LIGHT = "#87CEFA"; // Lightest blue from chart area / dropdown
+const COLOR_PRIMARY_DARK = "#4d9bac"; // Matches existing dark blue text
+const COLOR_PRIMARY_LIGHT = "#ecfcff"; // Lightest blue from chart area / dropdown
 const COLOR_SECONDARY_DARK = "#D32F2F"; // Matching MD error red / existing red button border
 
 const styles = StyleSheet.create({
@@ -107,8 +104,6 @@ const styles = StyleSheet.create({
     borderWidth: 1, // Refined to 1px for a cleaner look
     borderColor: "#e5e7eb", // Initial grey border, scheme will override
     borderRadius: 8, // Subtler radius
-    minHeight: 40, // Shorter for a more standard button feel
-    paddingHorizontal: 30, // Good horizontal spacing
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "white", // Standard starting background
@@ -127,6 +122,7 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  pressableWrapper: {},
   baseText: {
     fontSize: 16,
     fontWeight: "600",
@@ -149,14 +145,14 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
   },
   buttonSchemePrimaryActive: {
-    borderColor: COLOR_PRIMARY_LIGHT,
+    borderColor: "#33e0ff",
     backgroundColor: COLOR_PRIMARY_LIGHT,
   },
   textSchemePrimaryInactive: {
     color: COLOR_PRIMARY_DARK,
   },
   textSchemePrimaryActive: {
-    color: "white",
+    color: "#33e0ff",
   },
 
   // 2. SECONDARY (RED)
@@ -172,7 +168,7 @@ const styles = StyleSheet.create({
     color: COLOR_SECONDARY_DARK,
   },
   textSchemeSecondaryActive: {
-    color: "white",
+    color: "#4d9bac",
   },
 
   // 3. DEFAULT (GREYSCALE)

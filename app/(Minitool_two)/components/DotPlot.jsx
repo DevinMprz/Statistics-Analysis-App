@@ -95,8 +95,14 @@ const DotPlotPanel = React.memo(function DotPlotPanel({
     [guideLines, thresholdLines],
   );
 
+  const shouldShowGapCounts =
+    groupMode !== GROUP_MODES.MEDIAN &&
+    groupMode !== GROUP_MODES.QUARTILES &&
+    groupMode !== GROUP_MODES.FIXED_GROUP_SIZE;
+
   // Counts in each gap between vertical lines (and between lines and edges).
   const gapCounts = useMemo(() => {
+    if (!shouldShowGapCounts) return [];
     if (allLines.length === 0) return [];
     const xs = [...new Set(allLines.map((l) => l.x))].sort((a, b) => a - b);
     const boundariesX = [0, ...xs, renderWidth].filter(
@@ -108,7 +114,7 @@ const DotPlotPanel = React.memo(function DotPlotPanel({
       count,
       midX: (boundariesX[idx] + boundariesX[idx + 1]) / 2,
     }));
-  }, [allLines, values, renderWidth, xScale]);
+  }, [allLines, values, renderWidth, shouldShowGapCounts, xScale]);
 
   // Dynamic height — grow if dots stack above the configured base height.
   const levelGap = dotRadius * 2 + 2;

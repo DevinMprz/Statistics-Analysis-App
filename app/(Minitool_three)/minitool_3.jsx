@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   StyleSheet,
   View,
@@ -8,8 +8,12 @@ import {
   Dimensions,
   StatusBar,
   TouchableOpacity,
+  Platform,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import axios from "axios";
 import ScatterPlot from "./chart_components/ScatterPlot";
 import ScatterControls from "./controls/ScatterControls";
 import DataInfo from "./modals/InfoModal";
@@ -17,6 +21,39 @@ import bivariateData from "../../data/bivariate_set.json";
 import Dropdown from "../../components/dropDown";
 import UniverseButton from "../../components/universeButton";
 import UploadScenarioModal from "../../components/UploadScenarioModal";
+
+const API_URL = "http://localhost:5000/api/scenarios";
+const TOOL_TYPE = "minitool3";
+
+// Local presets shipped with the app, available alongside DB scenarios.
+const LOCAL_PRESETS = Object.keys(bivariateData).map((key) => ({
+  id: `local:${key}`,
+  name: key,
+  data: bivariateData[key],
+}));
+
+// Normalise scenario payloads coming from either the manual save endpoint
+// (data.currentData = [{x,y}]) or the file upload endpoint
+// (data.dataPoints = [{x,y,...}]).
+const extractPoints = (scenario) => {
+  const data = scenario?.data;
+  if (!data) return [];
+  if (Array.isArray(data.currentData)) return data.currentData;
+  if (Array.isArray(data.dataPoints)) {
+    return data.dataPoints
+      .map((row) => ({ x: Number(row.x), y: Number(row.y) }))
+      .filter((p) => !Number.isNaN(p.x) && !Number.isNaN(p.y));
+  }
+  return [];
+};
+
+const showAlert = (title, message) => {
+  if (Platform.OS === "web") {
+    window.alert(`${title}: ${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+};
 
 const Minitool_3 = () => {
   const [showCross, setShowCross] = useState(false);
@@ -45,16 +82,90 @@ const Minitool_3 = () => {
     setTwoGroupsCount(null);
   };
 
-  const [currentKey, setCurrentKey] = useState("dataset1");
-  const [isOpen, setIsOpen] = useState(false);
+  const [currentKey, setCurrentKey] = useState("local:dataset1");
+  const [currentData, setCurrentData] = useState(bivariateData.dataset1);
+  const [scenarios, setScenarios] = useState([]);
+  const [isLoadingScenarios, setIsLoadingScenarios] = useState(false);
   const [isUploadModalVisible, setIsUploadModalVisible] = useState(false);
 
-  const currentData = bivariateData[currentKey];
+  const fetchScenarios = useCallback(async () => {
+    try {
+      setIsLoadingScenarios(true);
+      const response = await axios.get(`${API_URL}/tool/${TOOL_TYPE}`);
+      if (response.data?.success) {
+        setScenarios(response.data.data || []);
+      }
+    } catch (error) {
+      console.error("Error fetching scenarios:", error);
+      if (error.code === "ERR_NETWORK") {
+        showAlert(
+          "Connection Error",
+          "Unable to reach the database. Make sure the backend server is running on port 5000.",
+        );
+      } else {
+        showAlert("Error", "Failed to fetch scenarios from database.");
+      }
+    } finally {
+      setIsLoadingScenarios(false);
+    }
+  }, []);
 
-  const dropdownOptions = Object.keys(bivariateData).map((key) => ({
-    value: key,
-    label: key,
-  }));
+  useEffect(() => {
+    fetchScenarios();
+  }, [fetchScenarios]);
+
+  const dropdownOptions = [
+    ...LOCAL_PRESETS.map((p) => ({ value: p.id, label: `★ ${p.name}` })),
+    ...scenarios.map((s) => ({ value: s._id, label: s.name })),
+  ];
+
+  const handleSelectScenario = useCallback(async (value) => {
+    if (!value) return;
+    setCurrentKey(value);
+    setSelectedPoint(null);
+
+    if (value.startsWith("local:")) {
+      const key = value.slice("local:".length);
+      if (bivariateData[key]) setCurrentData(bivariateData[key]);
+      return;
+    }
+
+    try {
+      const response = await axios.get(`${API_URL}/${value}`);
+      if (response.data?.success) {
+        const points = extractPoints(response.data.data);
+        if (points.length === 0) {
+          showAlert("Empty Scenario", "This scenario has no x/y points.");
+          return;
+        }
+        setCurrentData(points);
+      } else {
+        showAlert(
+          "Error",
+          "Failed to load scenario: " +
+            (response.data?.error || "Unknown error"),
+        );
+      }
+    } catch (error) {
+      console.error("Error loading scenario:", error);
+      showAlert("Error", "Failed to load scenario from database.");
+    }
+  }, []);
+
+  const handleUploadSuccess = useCallback(
+    (newScenario) => {
+      setIsUploadModalVisible(false);
+      fetchScenarios();
+      if (newScenario?._id) {
+        const points = extractPoints(newScenario);
+        if (points.length > 0) {
+          setCurrentData(points);
+          setCurrentKey(newScenario._id);
+        }
+      }
+    },
+    [fetchScenarios],
+  );
 
   const { width } = Dimensions.get("window");
 
@@ -77,9 +188,20 @@ const Minitool_3 = () => {
             <View style={styles.dropdownWrapper}>
               <Dropdown
                 data={dropdownOptions}
-                onChange={(val) => setCurrentKey(val)}
-                placeholder={currentKey}
+                onChange={handleSelectScenario}
+                placeholder={
+                  isLoadingScenarios
+                    ? "Loading scenarios..."
+                    : "Select scenario"
+                }
               />
+              {isLoadingScenarios && (
+                <ActivityIndicator
+                  style={styles.loadingIndicator}
+                  size="small"
+                  color="#2a7f9f"
+                />
+              )}
             </View>
             <View style={styles.uploadButtonWrapper}>
               <UniverseButton
@@ -140,8 +262,8 @@ const Minitool_3 = () => {
         <UploadScenarioModal
           visible={isUploadModalVisible}
           onClose={() => setIsUploadModalVisible(false)}
-          toolType="minitool3"
-          onSuccess={() => setIsUploadModalVisible(false)}
+          toolType={TOOL_TYPE}
+          onSuccess={handleUploadSuccess}
         />{" "}
       </SafeAreaView>
     </GestureHandlerRootView>
@@ -238,7 +360,31 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   dropdownWrapper: {
+    minWidth: 200,
+  },
+  uploadButtonWrapper: {},
+  uploadButton: {
+    minWidth: 140,
+    minHeight: 44,
+    paddingHorizontal: 24,
+  },
+  topRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    gap: 12,
+    zIndex: 100,
+  },
+  dropdownWrapper: {
     width: 300,
+    position: "relative",
+  },
+  loadingIndicator: {
+    position: "absolute",
+    right: 50,
+    top: 16,
   },
   uploadButtonWrapper: {},
   uploadButton: {

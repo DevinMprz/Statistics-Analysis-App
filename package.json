@@ -11,7 +11,8 @@
     "web": "expo start --web",
     "format": "eslint --fix .",
     "deploy": "gh-pages --nojekyll -d dist",
-    "predeploy": "expo export -p web"
+    "predeploy": "expo export -p web",
+    "test": "jest"
   },
   "dependencies": {
     "@react-native-community/blur": "^4.4.1",

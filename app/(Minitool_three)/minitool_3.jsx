@@ -1,13 +1,11 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   StyleSheet,
   View,
   ScrollView,
   SafeAreaView,
   Text,
-  Dimensions,
   StatusBar,
-  TouchableOpacity,
   Platform,
   Alert,
   ActivityIndicator,
@@ -16,11 +14,11 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import axios from "axios";
 import ScatterPlot from "./chart_components/ScatterPlot";
 import ScatterControls from "./controls/ScatterControls";
-import DataInfo from "./modals/InfoModal";
 import bivariateData from "../../data/bivariate_set.json";
 import Dropdown from "../../components/dropDown";
 import UniverseButton from "../../components/universeButton";
 import UploadScenarioModal from "../../components/UploadScenarioModal";
+import useDimensions from "../hooks/useDimensions";
 
 const API_URL = "http://localhost:5000/api/scenarios";
 const TOOL_TYPE = "minitool3";
@@ -167,7 +165,27 @@ const Minitool_3 = () => {
     [fetchScenarios],
   );
 
-  const { width } = Dimensions.get("window");
+  const { width } = useDimensions();
+
+  // --- Responsive breakpoints (memoized) ---
+  const { isMobile, isTablet, isDesktop } = useMemo(() => {
+    const mobile = width <= 480;
+    const tablet = width > 480 && width < 850;
+    const desktop = width >= 850;
+    return { isMobile: mobile, isTablet: tablet, isDesktop: desktop };
+  }, [width]);
+
+  // Chart sizing - fits inside the screen with some breathing room
+  const chartWidth = useMemo(() => {
+    const horizontalPadding = isMobile ? 20 : 40;
+    return Math.max(280, width - horizontalPadding);
+  }, [width, isMobile]);
+
+  const chartHeight = useMemo(() => {
+    if (isMobile) return 320;
+    if (isTablet) return 420;
+    return 500;
+  }, [isMobile, isTablet]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -184,8 +202,13 @@ const Minitool_3 = () => {
           scrollEnabled={scrollEnabled}
         >
           {/* Dataset selector + Upload action row */}
-          <View style={styles.topRow}>
-            <View style={styles.dropdownWrapper}>
+          <View style={[styles.topRow, isMobile && styles.topRowMobile]}>
+            <View
+              style={[
+                styles.dropdownWrapper,
+                isMobile && styles.dropdownWrapperMobile,
+              ]}
+            >
               <Dropdown
                 data={dropdownOptions}
                 onChange={handleSelectScenario}
@@ -203,20 +226,32 @@ const Minitool_3 = () => {
                 />
               )}
             </View>
-            <View style={styles.uploadButtonWrapper}>
+            <View
+              style={[
+                styles.uploadButtonWrapper,
+                isMobile && styles.uploadButtonWrapperMobile,
+              ]}
+            >
               <UniverseButton
                 title="Upload"
                 onPress={() => setIsUploadModalVisible(true)}
                 colorScheme="primary"
-                containerStyles={styles.uploadButton}
+                containerStyles={[
+                  styles.uploadButton,
+                  isMobile && styles.uploadButtonMobile,
+                ]}
               />
             </View>
           </View>
 
           {/* Main Chart Section */}
-          <View style={styles.chartSection}>
+          <View
+            style={[styles.chartSection, isMobile && styles.chartSectionMobile]}
+          >
             <ScatterPlot
               data={currentData}
+              width={chartWidth}
+              height={chartHeight}
               showCross={showCross}
               hideData={hideData}
               activeGrid={activeGrid}
@@ -229,9 +264,15 @@ const Minitool_3 = () => {
           </View>
 
           {/* Controls and Info Row */}
-          <View style={styles.controlsSection}>
+          <View
+            style={[
+              styles.controlsSection,
+              isMobile && styles.controlsSectionMobile,
+            ]}
+          >
             <View style={{ flex: 1 }}>
               <ScatterControls
+                isMobile={isMobile}
                 showCross={showCross}
                 onShowCrossChange={setShowCross}
                 hideData={hideData}
@@ -244,20 +285,7 @@ const Minitool_3 = () => {
                 onFourGroupsChange={handleFourGroupsChange}
               />
             </View>
-            {/* <View style={{ marginLeft: 10 }}>
-              <DataInfo data={currentData} />
-            </View> */}
           </View>
-
-          {/* Additional Info */}
-          {/* <View style={styles.infoBox}>
-            <Text style={styles.infoTitle}>Current Display Mode:</Text>
-            <Text style={styles.infoText}>{displayMode}</Text>
-            <Text style={styles.infoDescription}>
-              More features coming soon! Features like cross analysis, grid
-              overlay, and grouping options will be available.
-            </Text>
-          </View> */}
         </ScrollView>
         <UploadScenarioModal
           visible={isUploadModalVisible}
@@ -300,7 +328,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   chartSection: {
-    backgroundColor: "#cc1111",
+    backgroundColor: "#fff",
     marginHorizontal: 10,
     marginVertical: 10,
     borderRadius: 8,
@@ -358,28 +386,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 12,
     gap: 12,
-  },
-  dropdownWrapper: {
-    minWidth: 200,
-  },
-  uploadButtonWrapper: {},
-  uploadButton: {
-    minWidth: 140,
-    minHeight: 44,
-    paddingHorizontal: 24,
-  },
-  topRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 16,
-    marginBottom: 12,
-    gap: 12,
     zIndex: 100,
+  },
+  topRowMobile: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    paddingHorizontal: 12,
+    gap: 8,
   },
   dropdownWrapper: {
     width: 300,
     position: "relative",
+  },
+  dropdownWrapperMobile: {
+    width: "100%",
   },
   loadingIndicator: {
     position: "absolute",
@@ -387,10 +407,26 @@ const styles = StyleSheet.create({
     top: 16,
   },
   uploadButtonWrapper: {},
+  uploadButtonWrapperMobile: {
+    width: "100%",
+  },
   uploadButton: {
     minWidth: 140,
     minHeight: 44,
     paddingHorizontal: 24,
+  },
+  uploadButtonMobile: {
+    width: "100%",
+    minHeight: 44,
+  },
+  chartSectionMobile: {
+    marginHorizontal: 0,
+  },
+  controlsSectionMobile: {
+    height: 700,
+    flexDirection: "column",
+    alignItems: "stretch",
+    marginHorizontal: 6,
   },
   dropdownContainer: {
     alignSelf: "center",

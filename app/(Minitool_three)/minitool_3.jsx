@@ -14,6 +14,9 @@ import ScatterPlot from "./chart_components/ScatterPlot";
 import ScatterControls from "./controls/ScatterControls";
 import DataInfo from "./modals/InfoModal";
 import bivariateData from "../../data/bivariate_set.json";
+import Dropdown from "../../components/dropDown";
+import UniverseButton from "../../components/universeButton";
+import UploadScenarioModal from "../../components/UploadScenarioModal";
 
 const Minitool_3 = () => {
   const [showCross, setShowCross] = useState(false);
@@ -44,8 +47,14 @@ const Minitool_3 = () => {
 
   const [currentKey, setCurrentKey] = useState("dataset1");
   const [isOpen, setIsOpen] = useState(false);
+  const [isUploadModalVisible, setIsUploadModalVisible] = useState(false);
 
   const currentData = bivariateData[currentKey];
+
+  const dropdownOptions = Object.keys(bivariateData).map((key) => ({
+    value: key,
+    label: key,
+  }));
 
   const { width } = Dimensions.get("window");
 
@@ -53,43 +62,33 @@ const Minitool_3 = () => {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView style={styles.safeArea}>
         <StatusBar backgroundColor="#2a7f9f" barStyle="light-content" />
-
         <View style={styles.headerContainer}>
           <Text style={styles.title}>Scatter Plot Analysis</Text>
           <Text style={styles.subtitle}>Bivariate Data Visualization</Text>
         </View>
-
         <ScrollView
           style={styles.mainContainer}
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
           scrollEnabled={scrollEnabled}
         >
-          {/* The Dropdown Overaly */}
-          <View style={styles.dropdownContainer}>
-            <TouchableOpacity
-              style={styles.dropdownHeader}
-              onPress={() => setIsOpen(!isOpen)}
-            >
-              <Text style={styles.headerText}>{currentKey} ▼</Text>
-            </TouchableOpacity>
-
-            {isOpen && (
-              <View style={styles.dropdownList}>
-                {Object.keys(bivariateData).map((key) => (
-                  <TouchableOpacity
-                    key={key}
-                    style={styles.item}
-                    onPress={() => {
-                      setCurrentKey(key);
-                      setIsOpen(false);
-                    }}
-                  >
-                    <Text style={styles.itemText}>{key}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
+          {/* Dataset selector + Upload action row */}
+          <View style={styles.topRow}>
+            <View style={styles.dropdownWrapper}>
+              <Dropdown
+                data={dropdownOptions}
+                onChange={(val) => setCurrentKey(val)}
+                placeholder={currentKey}
+              />
+            </View>
+            <View style={styles.uploadButtonWrapper}>
+              <UniverseButton
+                title="Upload"
+                onPress={() => setIsUploadModalVisible(true)}
+                colorScheme="primary"
+                containerStyles={styles.uploadButton}
+              />
+            </View>
           </View>
 
           {/* Main Chart Section */}
@@ -138,6 +137,12 @@ const Minitool_3 = () => {
             </Text>
           </View> */}
         </ScrollView>
+        <UploadScenarioModal
+          visible={isUploadModalVisible}
+          onClose={() => setIsUploadModalVisible(false)}
+          toolType="minitool3"
+          onSuccess={() => setIsUploadModalVisible(false)}
+        />{" "}
       </SafeAreaView>
     </GestureHandlerRootView>
   );
@@ -224,6 +229,23 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
+  topRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    gap: 12,
+  },
+  dropdownWrapper: {
+    width: 300,
+  },
+  uploadButtonWrapper: {},
+  uploadButton: {
+    minWidth: 140,
+    minHeight: 44,
+    paddingHorizontal: 24,
+  },
   dropdownContainer: {
     alignSelf: "center",
     width: 300,

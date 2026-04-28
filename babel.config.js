@@ -1,27 +1,11 @@
 module.exports = function (api) {
-  const isTest = api.caller((caller) => caller && caller.name === 'babel-jest');
-
-  api.cache(() => isTest);
-
-  if (isTest) {
-    return {
-      presets: [
-        ['babel-preset-expo', { jsxRuntime: 'automatic' }],
-      ],
-      plugins: [
-        'react-native-reanimated/plugin',
-      ],
-    };
-  }
-
+  api.cache(true);
   return {
     presets: [
-      ['babel-preset-expo', { jsxImportSource: 'nativewind' }],
-      'nativewind/babel',
+      ["babel-preset-expo", { jsxImportSource: "nativewind" }], // Required for NativeWind v4
     ],
     plugins: [
-      'react-native-reanimated/plugin',
+      "react-native-reanimated/plugin", // Must be last
     ],
-    plugins: ["react-native-reanimated/plugin"],
   };
 };

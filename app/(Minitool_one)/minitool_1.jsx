@@ -905,23 +905,39 @@ const Minitool_1 = () => {
               {/* --- Stats Section --- */}
               {isMobile ? (
                 // Mobile: Horizontal stats bar below chart
-                <View style={styles.statsBarMobile}>
+                <View testID="mobile-stats-bar" style={styles.statsBarMobile}>
                   <View style={styles.statItemMobile}>
                     <Text style={styles.statLabelMobile}>Amount</Text>
-                    <Text style={styles.statValueMobile}>{barCount}</Text>
+                    <Text
+                      testID="mobile-stat-amount"
+                      style={styles.statValueMobile}
+                    >
+                      {barCount}
+                    </Text>
                   </View>
                   <View style={[styles.statItemMobile, styles.statItemBorder]}>
                     <Text style={styles.statLabelMobile}>Min</Text>
-                    <Text style={styles.statValueMobile}>{minLifespan}</Text>
+                    <Text
+                      testID="mobile-stat-min"
+                      style={styles.statValueMobile}
+                    >
+                      {minLifespan}
+                    </Text>
                   </View>
                   <View style={styles.statItemMobile}>
                     <Text style={styles.statLabelMobile}>Max</Text>
-                    <Text style={styles.statValueMobile}>{maxLifespan}</Text>
+                    <Text
+                      testID="mobile-stat-max"
+                      style={styles.statValueMobile}
+                    >
+                      {maxLifespan}
+                    </Text>
                   </View>
                 </View>
               ) : (
                 // Tablet & Desktop: Vertical sidebar (width changes based on device)
                 <View
+                  testID="stats-bar"
                   style={{
                     width: EFFECTIVE_SIDEBAR_WIDTH,
                     height: Math.max(SVG_HEIGHT, 250),
@@ -952,6 +968,7 @@ const Minitool_1 = () => {
                       Amount
                     </Text>
                     <Text
+                      testID="stat-amount"
                       style={{
                         fontSize: isTablet ? 24 : 32,
                         fontWeight: "bold",
@@ -982,6 +999,7 @@ const Minitool_1 = () => {
                         Min
                       </Text>
                       <Text
+                        testID="stat-min"
                         style={{
                           fontSize: isTablet ? 14 : 16,
                           fontWeight: "600",
@@ -1004,6 +1022,7 @@ const Minitool_1 = () => {
                         Max
                       </Text>
                       <Text
+                        testID="stat-max"
                         style={{
                           fontSize: isTablet ? 14 : 16,
                           fontWeight: "600",

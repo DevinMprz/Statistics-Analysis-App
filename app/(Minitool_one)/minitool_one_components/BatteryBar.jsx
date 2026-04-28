@@ -66,6 +66,7 @@ const BatteryBar = ({
     <G>
       {!dotsOnly && (
         <AnimatedRect
+          testID={`battery-bar-${index}`}
           x="0"
           y={yPos + TOP_BUFFER}
           width={barEndPosition}

@@ -1,35 +1,76 @@
-import 'react-native-gesture-handler/jestSetup';
-import '@testing-library/jest-native/extend-expect';
-// Mock Reanimated
-jest.mock('react-native-reanimated', () => {
-  const Reanimated = require('react-native-reanimated/mock');
+import "react-native-gesture-handler/jestSetup";
+import "@testing-library/jest-native/extend-expect";
 
-  // The mock for `call` immediately calls the callback.
-  // Original mock doesn't include this, so we add it.
-  Reanimated.default.call = (cb) => cb();
+// Global Alert
+global.alert = jest.fn();
 
-  return Reanimated;
-});
-
-
-// Mock gifted-charts
-jest.mock('react-native-gifted-charts', () => ({
-  BarChart: (props) => {
-    // We can use a testID to inspect the data passed to it
-    return <div testID="bar-chart" data-props={JSON.stringify(props.data)} />;
-  },
+// Global Axios Mock
+jest.mock("axios", () => ({
+  get: jest.fn(() => Promise.resolve({ data: { success: true, data: [] } })),
+  post: jest.fn(() => Promise.resolve({ data: { success: true, data: {} } })),
+  delete: jest.fn(() => Promise.resolve({ data: { success: true } })),
+  create: jest.fn(function () {
+    return this;
+  }),
 }));
 
-
-// Mock child components to isolate the Minitool_1 component
-jest.mock('./app/(Minitool_one)/minitool_one_components/customTabBar', () => 'CustomTabBar');
-jest.mock('./components/customButton', () => {
-    // A mock that simulates the button's behavior
-    const { Text, TouchableOpacity } = require('react-native');
-    return ({ title, hadlePress, containerStyles }) => (
-        <TouchableOpacity onPress={hadlePress} testID={`custom-button-${title.replace(/\s+/g, '-')}`}>
-            <Text>{title}</Text>
-        </TouchableOpacity>
-    );
+// Reanimated (Detailed Mock for animations & tools)
+jest.mock("react-native-reanimated", () => {
+  const Reanimated = require("react-native-reanimated/mock");
+  Reanimated.default.call = (cb) => cb();
+  return {
+    ...Reanimated,
+    useSharedValue: jest.fn((val) => ({ value: val })),
+    useAnimatedStyle: (callback) => callback(),
+    useAnimatedReaction: jest.fn(),
+    runOnJS: (fn) => fn,
+    clamp: (val, min, max) => Math.min(Math.max(val, min), max),
+  };
 });
-jest.mock('./app/(Minitool_one)/minitool_one_components/customDataForm', () => 'CustomDataForm');
+
+// Gesture Handler
+jest.mock("react-native-gesture-handler", () => {
+  const { View, ScrollView } = require("react-native");
+  const createMockGesture = () => {
+    const obj = {};
+    const methods = [
+      "activeOffsetX",
+      "activeOffsetY",
+      "onBegin",
+      "onStart",
+      "onUpdate",
+      "onEnd",
+      "onFinalize",
+    ];
+    methods.forEach((m) => (obj[m] = jest.fn(() => obj)));
+    return obj;
+  };
+  return {
+    ScrollView,
+    GestureHandlerRootView: View,
+    GestureDetector: ({ children }) => children,
+    Gesture: { Pan: createMockGesture, Tap: createMockGesture },
+    State: {},
+    Directions: {},
+  };
+});
+
+// Safe Area Context
+jest.mock("react-native-safe-area-context", () => {
+  const inset = { top: 0, right: 0, bottom: 0, left: 0 };
+  return {
+    SafeAreaProvider: ({ children }) => children,
+    SafeAreaView: ({ children }) => children,
+    SafeAreaConsumer: ({ children }) => children(inset),
+    useSafeAreaInsets: () => inset,
+    useSafeAreaFrame: () => ({ x: 0, y: 0, width: 390, height: 844 }),
+  };
+});
+
+// UI & Icon Libraries
+jest.mock("@expo/vector-icons", () => ({
+  Ionicons: "Ionicons",
+  MaterialIcons: "MaterialIcons",
+  MaterialCommunityIcons: "MaterialCommunityIcons",
+  FontAwesome: "FontAwesome",
+}));

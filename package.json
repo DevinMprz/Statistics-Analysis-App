@@ -10,6 +10,9 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "format": "eslint --fix .",
+    "test": "jest --verbose --selectProjects logic",
+    "test:all": "jest --verbose",
+    "test:backend": "cd backend && npx jest --verbose",
     "deploy": "gh-pages --nojekyll -d dist",
     "predeploy": "expo export -p web"
   },
@@ -21,6 +24,7 @@
     "d3-scale": "^4.0.2",
     "expo": "^53.0.0",
     "expo-constants": "~17.1.6",
+    "expo-document-picker": "~13.1.6",
     "expo-linear-gradient": "~14.1.5",
     "expo-linking": "~7.1.5",
     "expo-router": "~5.1.0",
@@ -43,8 +47,7 @@
     "react-native-svg": "^15.12.0",
     "react-native-web": "^0.20.0",
     "tailwindcss": "^3.4.16",
-    "victory-native": "^36.9.2",
-    "expo-document-picker": "~13.1.6"
+    "victory-native": "^36.9.2"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
@@ -56,6 +59,7 @@
     "eslint-plugin-react": "^7.37.4",
     "gh-pages": "^6.3.0",
     "globals": "^16.0.0",
+    "jest": "^30.3.0",
     "tailwindcss": "^3.4.17",
     "typescript": "~5.8.3"
   },

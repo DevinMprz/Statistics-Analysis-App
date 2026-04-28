@@ -29,8 +29,8 @@
     "jest-expo": "~53.0.14",
     "nativewind": "^4.1.23",
     "npm": "^11.0.0",
-    "react": "^19.2.5",
-    "react-dom": "^19.2.5",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
     "react-native": "0.79.6",
     "react-native-charts-wrapper": "^0.6.0",
     "react-native-element-dropdown": "^2.12.4",
@@ -44,6 +44,7 @@
     "react-native-screens": "~4.11.1",
     "react-native-svg": "15.11.2",
     "react-native-web": "^0.20.0",
+    "react-test-renderer": "19.0.0",
     "tailwindcss": "^3.4.16",
     "victory-native": "^36.9.2"
   },
@@ -59,8 +60,6 @@
     "eslint-plugin-react": "^7.37.4",
     "gh-pages": "^6.3.0",
     "globals": "^16.0.0",
-    "jest-expo": "~53.0.14",
-    "react-test-renderer": "^19.2.5",
     "tailwindcss": "^3.4.17",
     "typescript": "~5.8.3"
   },

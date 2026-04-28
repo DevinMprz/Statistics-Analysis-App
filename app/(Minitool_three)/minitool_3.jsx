@@ -1,19 +1,57 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   StyleSheet,
   View,
   ScrollView,
   SafeAreaView,
   Text,
-  Dimensions,
   StatusBar,
-  TouchableOpacity,
+  Platform,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import axios from "axios";
 import ScatterPlot from "./chart_components/ScatterPlot";
 import ScatterControls from "./controls/ScatterControls";
-import DataInfo from "./modals/InfoModal";
 import bivariateData from "../../data/bivariate_set.json";
+import Dropdown from "../../components/dropDown";
+import UniverseButton from "../../components/universeButton";
+import UploadScenarioModal from "../../components/UploadScenarioModal";
+import useDimensions from "../hooks/useDimensions";
+
+const API_URL = "http://localhost:5000/api/scenarios";
+const TOOL_TYPE = "minitool3";
+
+// Local presets shipped with the app, available alongside DB scenarios.
+const LOCAL_PRESETS = Object.keys(bivariateData).map((key) => ({
+  id: `local:${key}`,
+  name: key,
+  data: bivariateData[key],
+}));
+
+// Normalise scenario payloads coming from either the manual save endpoint
+// (data.currentData = [{x,y}]) or the file upload endpoint
+// (data.dataPoints = [{x,y,...}]).
+const extractPoints = (scenario) => {
+  const data = scenario?.data;
+  if (!data) return [];
+  if (Array.isArray(data.currentData)) return data.currentData;
+  if (Array.isArray(data.dataPoints)) {
+    return data.dataPoints
+      .map((row) => ({ x: Number(row.x), y: Number(row.y) }))
+      .filter((p) => !Number.isNaN(p.x) && !Number.isNaN(p.y));
+  }
+  return [];
+};
+
+const showAlert = (title, message) => {
+  if (Platform.OS === "web") {
+    window.alert(`${title}: ${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+};
 
 const Minitool_3 = () => {
   const [showCross, setShowCross] = useState(false);
@@ -42,60 +80,178 @@ const Minitool_3 = () => {
     setTwoGroupsCount(null);
   };
 
-  const [currentKey, setCurrentKey] = useState("dataset1");
-  const [isOpen, setIsOpen] = useState(false);
+  const [currentKey, setCurrentKey] = useState("local:dataset1");
+  const [currentData, setCurrentData] = useState(bivariateData.dataset1);
+  const [scenarios, setScenarios] = useState([]);
+  const [isLoadingScenarios, setIsLoadingScenarios] = useState(false);
+  const [isUploadModalVisible, setIsUploadModalVisible] = useState(false);
 
-  const currentData = bivariateData[currentKey];
+  const fetchScenarios = useCallback(async () => {
+    try {
+      setIsLoadingScenarios(true);
+      const response = await axios.get(`${API_URL}/tool/${TOOL_TYPE}`);
+      if (response.data?.success) {
+        setScenarios(response.data.data || []);
+      }
+    } catch (error) {
+      console.error("Error fetching scenarios:", error);
+      if (error.code === "ERR_NETWORK") {
+        showAlert(
+          "Connection Error",
+          "Unable to reach the database. Make sure the backend server is running on port 5000.",
+        );
+      } else {
+        showAlert("Error", "Failed to fetch scenarios from database.");
+      }
+    } finally {
+      setIsLoadingScenarios(false);
+    }
+  }, []);
 
-  const { width } = Dimensions.get("window");
+  useEffect(() => {
+    fetchScenarios();
+  }, [fetchScenarios]);
+
+  const dropdownOptions = [
+    ...LOCAL_PRESETS.map((p) => ({ value: p.id, label: `★ ${p.name}` })),
+    ...scenarios.map((s) => ({ value: s._id, label: s.name })),
+  ];
+
+  const handleSelectScenario = useCallback(async (value) => {
+    if (!value) return;
+    setCurrentKey(value);
+    setSelectedPoint(null);
+
+    if (value.startsWith("local:")) {
+      const key = value.slice("local:".length);
+      if (bivariateData[key]) setCurrentData(bivariateData[key]);
+      return;
+    }
+
+    try {
+      const response = await axios.get(`${API_URL}/${value}`);
+      if (response.data?.success) {
+        const points = extractPoints(response.data.data);
+        if (points.length === 0) {
+          showAlert("Empty Scenario", "This scenario has no x/y points.");
+          return;
+        }
+        setCurrentData(points);
+      } else {
+        showAlert(
+          "Error",
+          "Failed to load scenario: " +
+            (response.data?.error || "Unknown error"),
+        );
+      }
+    } catch (error) {
+      console.error("Error loading scenario:", error);
+      showAlert("Error", "Failed to load scenario from database.");
+    }
+  }, []);
+
+  const handleUploadSuccess = useCallback(
+    (newScenario) => {
+      setIsUploadModalVisible(false);
+      fetchScenarios();
+      if (newScenario?._id) {
+        const points = extractPoints(newScenario);
+        if (points.length > 0) {
+          setCurrentData(points);
+          setCurrentKey(newScenario._id);
+        }
+      }
+    },
+    [fetchScenarios],
+  );
+
+  const { width } = useDimensions();
+
+  // --- Responsive breakpoints (memoized) ---
+  const { isMobile, isTablet, isDesktop } = useMemo(() => {
+    const mobile = width <= 480;
+    const tablet = width > 480 && width < 850;
+    const desktop = width >= 850;
+    return { isMobile: mobile, isTablet: tablet, isDesktop: desktop };
+  }, [width]);
+
+  // Chart sizing - fits inside the screen with some breathing room
+  const chartWidth = useMemo(() => {
+    const horizontalPadding = isMobile ? 20 : 40;
+    return Math.max(280, width - horizontalPadding);
+  }, [width, isMobile]);
+
+  const chartHeight = useMemo(() => {
+    if (isMobile) return 320;
+    if (isTablet) return 420;
+    return 500;
+  }, [isMobile, isTablet]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView style={styles.safeArea}>
         <StatusBar backgroundColor="#2a7f9f" barStyle="light-content" />
-
         <View style={styles.headerContainer}>
           <Text style={styles.title}>Scatter Plot Analysis</Text>
           <Text style={styles.subtitle}>Bivariate Data Visualization</Text>
         </View>
-
         <ScrollView
           style={styles.mainContainer}
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
           scrollEnabled={scrollEnabled}
         >
-          {/* The Dropdown Overaly */}
-          <View style={styles.dropdownContainer}>
-            <TouchableOpacity
-              style={styles.dropdownHeader}
-              onPress={() => setIsOpen(!isOpen)}
+          {/* Dataset selector + Upload action row */}
+          <View style={[styles.topRow, isMobile && styles.topRowMobile]}>
+            <View
+              style={[
+                styles.dropdownWrapper,
+                isMobile && styles.dropdownWrapperMobile,
+              ]}
             >
-              <Text style={styles.headerText}>{currentKey} ▼</Text>
-            </TouchableOpacity>
-
-            {isOpen && (
-              <View style={styles.dropdownList}>
-                {Object.keys(bivariateData).map((key) => (
-                  <TouchableOpacity
-                    key={key}
-                    style={styles.item}
-                    onPress={() => {
-                      setCurrentKey(key);
-                      setIsOpen(false);
-                    }}
-                  >
-                    <Text style={styles.itemText}>{key}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
+              <Dropdown
+                data={dropdownOptions}
+                onChange={handleSelectScenario}
+                placeholder={
+                  isLoadingScenarios
+                    ? "Loading scenarios..."
+                    : "Select scenario"
+                }
+              />
+              {isLoadingScenarios && (
+                <ActivityIndicator
+                  style={styles.loadingIndicator}
+                  size="small"
+                  color="#2a7f9f"
+                />
+              )}
+            </View>
+            <View
+              style={[
+                styles.uploadButtonWrapper,
+                isMobile && styles.uploadButtonWrapperMobile,
+              ]}
+            >
+              <UniverseButton
+                title="Upload"
+                onPress={() => setIsUploadModalVisible(true)}
+                colorScheme="primary"
+                containerStyles={[
+                  styles.uploadButton,
+                  isMobile && styles.uploadButtonMobile,
+                ]}
+              />
+            </View>
           </View>
 
           {/* Main Chart Section */}
-          <View style={styles.chartSection}>
+          <View
+            style={[styles.chartSection, isMobile && styles.chartSectionMobile]}
+          >
             <ScatterPlot
               data={currentData}
+              width={chartWidth}
+              height={chartHeight}
               showCross={showCross}
               hideData={hideData}
               activeGrid={activeGrid}
@@ -108,9 +264,15 @@ const Minitool_3 = () => {
           </View>
 
           {/* Controls and Info Row */}
-          <View style={styles.controlsSection}>
+          <View
+            style={[
+              styles.controlsSection,
+              isMobile && styles.controlsSectionMobile,
+            ]}
+          >
             <View style={{ flex: 1 }}>
               <ScatterControls
+                isMobile={isMobile}
                 showCross={showCross}
                 onShowCrossChange={setShowCross}
                 hideData={hideData}
@@ -123,21 +285,14 @@ const Minitool_3 = () => {
                 onFourGroupsChange={handleFourGroupsChange}
               />
             </View>
-            {/* <View style={{ marginLeft: 10 }}>
-              <DataInfo data={currentData} />
-            </View> */}
           </View>
-
-          {/* Additional Info */}
-          {/* <View style={styles.infoBox}>
-            <Text style={styles.infoTitle}>Current Display Mode:</Text>
-            <Text style={styles.infoText}>{displayMode}</Text>
-            <Text style={styles.infoDescription}>
-              More features coming soon! Features like cross analysis, grid
-              overlay, and grouping options will be available.
-            </Text>
-          </View> */}
         </ScrollView>
+        <UploadScenarioModal
+          visible={isUploadModalVisible}
+          onClose={() => setIsUploadModalVisible(false)}
+          toolType={TOOL_TYPE}
+          onSuccess={handleUploadSuccess}
+        />{" "}
       </SafeAreaView>
     </GestureHandlerRootView>
   );
@@ -173,7 +328,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   chartSection: {
-    backgroundColor: "#cc1111",
+    backgroundColor: "#fff",
     marginHorizontal: 10,
     marginVertical: 10,
     borderRadius: 8,
@@ -224,6 +379,55 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
+  topRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    gap: 12,
+    zIndex: 100,
+  },
+  topRowMobile: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  dropdownWrapper: {
+    width: 300,
+    position: "relative",
+  },
+  dropdownWrapperMobile: {
+    width: "100%",
+  },
+  loadingIndicator: {
+    position: "absolute",
+    right: 50,
+    top: 16,
+  },
+  uploadButtonWrapper: {},
+  uploadButtonWrapperMobile: {
+    width: "100%",
+  },
+  uploadButton: {
+    minWidth: 140,
+    minHeight: 44,
+    paddingHorizontal: 24,
+  },
+  uploadButtonMobile: {
+    width: "100%",
+    minHeight: 44,
+  },
+  chartSectionMobile: {
+    marginHorizontal: 0,
+  },
+  controlsSectionMobile: {
+    height: 700,
+    flexDirection: "column",
+    alignItems: "stretch",
+    marginHorizontal: 6,
+  },
   dropdownContainer: {
     alignSelf: "center",
     width: 300,

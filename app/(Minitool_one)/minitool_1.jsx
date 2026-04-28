@@ -35,6 +35,7 @@ import useRangeTool from "./tools/RangeTool";
 import useChartControls from "./controls/ChartControls";
 import useDataGenerationModal from "./modals/DataGenerationModal";
 import useBarGenerationModal from "./modals/BarGenerationModal";
+import UploadScenarioModal from "../../components/UploadScenarioModal"; //
 import BarInfoModal from "./modals/BarInfoModal";
 import useDimensions from "../hooks/useDimensions";
 import UniverseButton from "../../components/universeButton";
@@ -281,6 +282,29 @@ const Minitool_1 = () => {
     MAX_BAR_COUNT: MAX_BAR_COUNT,
   });
 
+  const [isUploadModalVisible, setIsUploadModalVisible] = useState(false);
+  const handleUploadSuccess = (newScenario) => {
+    // Extract battery data from the scenario object
+    const batteryData = newScenario.data.dataPoints;
+    console.log("Received battery data from upload:", batteryData);
+
+    //Update tool state with the new data
+    setCurrentBatteryData(batteryData);
+    setLoadedScenarioName(newScenario.name);
+    setSelectedScenarioId(newScenario._id);
+
+    // Reset chart sorting/filters
+    chartControls.setIsSortedByColor(false);
+    chartControls.setIsSortedBySize(false);
+
+    // Refresh the dropdown list to include the new scenario
+    fetchScenarios();
+
+    // Modal closes automatically via its internal timer,
+    // but we ensure our state tracks it
+    setIsUploadModalVisible(false);
+  };
+
   // --- Animated Props for lines of the tools (range tool moved to RangeTool component) ---
 
   // --- Animations for the labels (moved to RangeTool component) ---
@@ -457,9 +481,11 @@ const Minitool_1 = () => {
   const loadScenario = async (scenarioId) => {
     try {
       const response = await axios.get(`${API_URL}/${scenarioId}`);
+      console.log("Load scenario response:", response);
       if (response.data.success) {
-        const scenarioData = response.data.data;
-        setCurrentBatteryData(scenarioData.data.bars);
+        const scenarioData = response.data.dataPoints;
+        conslole.log("Loaded scenario data:", scenarioData);
+        setCurrentBatteryData(scenarioData);
         setLoadedScenarioId(scenarioId);
         setLoadedScenarioName(scenarioData.name);
         setSelectedScenarioId(scenarioId);
@@ -479,8 +505,8 @@ const Minitool_1 = () => {
     try {
       const response = await axios.get(`${API_URL}/${scenarioId}`);
       if (response.data.success) {
-        const scenarioData = response.data.data.data;
-        setCurrentBatteryData(scenarioData.bars);
+        const scenarioData = response.data.data;
+        setCurrentBatteryData(scenarioData.data.dataPoints);
         setLoadedScenarioName(response.data.data.name);
         setSelectedScenarioId(scenarioId);
 
@@ -749,10 +775,8 @@ const Minitool_1 = () => {
             ]}
           >
             <UniverseButton
-              title={isMobile ? "Upload" : "Mock for Upload"}
-              onPress={() =>
-                alert("This is a mock button for the upload functionality.")
-              }
+              title="Upload"
+              onPress={() => setIsUploadModalVisible(true)} //
               colorScheme="primary"
               containerStyles={
                 isMobile ? styles.topButtonMobile : styles.topButton
@@ -1051,7 +1075,7 @@ const Minitool_1 = () => {
               color="#0066cc"
             />
           </View>
-          <View style={styles.buttonWrapper}>
+          {/* <View style={styles.buttonWrapper}>
             <Button
               title="Load Scenario"
               onPress={() => {
@@ -1060,7 +1084,7 @@ const Minitool_1 = () => {
               }}
               color="#009900"
             />
-          </View>
+          </View> */}
         </View>
 
         {/* --- Pop-up window for generating data set --- */}
@@ -1068,6 +1092,16 @@ const Minitool_1 = () => {
 
         {/* --- Pop-up window for adding a single bar --- */}
         {barGenerationModal.renderModal()}
+
+        {/* --- Pop-up window for uploading data from file --- */}
+        {/* --- Pop-up window for uploading data from file --- */}
+        <UploadScenarioModal
+          visible={isUploadModalVisible}
+          onClose={() => setIsUploadModalVisible(false)}
+          toolType="minitool1"
+          onSuccess={handleUploadSuccess}
+          onError={(err) => console.error("Upload Error:", err)}
+        />
 
         {/* --- Bar Info Modal --- */}
         <BarInfoModal
@@ -1107,7 +1141,7 @@ const Minitool_1 = () => {
               </View>
 
               {/* Load Scenario Section */}
-              <View style={styles.loadScenarioSection}>
+              {/* <View style={styles.loadScenarioSection}>
                 <Text style={styles.sectionTitle}>Load Saved Scenario</Text>
                 {isLoadingScenarios ? (
                   <View style={styles.loadingContainer}>
@@ -1153,7 +1187,7 @@ const Minitool_1 = () => {
                     No scenarios saved yet
                   </Text>
                 )}
-              </View>
+              </View> */}
 
               <TouchableOpacity
                 onPress={() => setShowScenariosModal(false)}

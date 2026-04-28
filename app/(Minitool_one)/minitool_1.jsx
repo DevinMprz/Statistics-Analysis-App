@@ -1,39 +1,51 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, {
+  useEffect,
+  useState,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
 import {
   StyleSheet,
   View,
   Text,
   Platform,
-  ScrollView,
   StatusBar,
   Modal,
   Button,
-  Dimensions,
   TextInput,
   Alert,
   TouchableOpacity,
   ActivityIndicator,
   FlatList,
 } from "react-native";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
+import {
+  GestureHandlerRootView,
+  ScrollView,
+} from "react-native-gesture-handler";
 import Animated, { useAnimatedReaction } from "react-native-reanimated";
 import { useRouter } from "expo-router";
-import Svg, { Line, G, Text as SvgText } from "react-native-svg";
+import Svg, { Line, Circle, G, Text as SvgText } from "react-native-svg";
 import axios from "axios";
 import RNPickerSelect from "react-native-picker-select";
 import initialBatteryData from "../../data/batteryScenario_set.json";
-import BatteryBar from "./chart_components/BatteryBar";
+import BatteryBar from "./minitool_one_components/BatteryBar";
 import useValueTool from "./tools/ValueTool";
 import useRangeTool from "./tools/RangeTool";
 import useChartControls from "./controls/ChartControls";
 import useDataGenerationModal from "./modals/DataGenerationModal";
 import useBarGenerationModal from "./modals/BarGenerationModal";
+import UploadScenarioModal from "../../components/UploadScenarioModal"; //
+import BarInfoModal from "./modals/BarInfoModal";
+import useDimensions from "../hooks/useDimensions";
+import UniverseButton from "../../components/universeButton";
+import Dropdown from "../../components/dropDown";
 
 // --- Configuration ---
 const MIN_BATTERY_COUNT_VALUE = 1;
 const MAX_BATTERY_COUNT_VALUE = 10;
 const MAX_BAR_COUNT = 20;
-const MAX_LIFESPAN = 130;
+const MAX_LIFESPAN = 120;
 const MIN_LIFESPAN = 1;
 const TOUGH_CELL_COLOR = "#33cc33";
 const ALWAYS_READY_COLOR = "#cc00ff";
@@ -45,12 +57,14 @@ const RANGE_HANDLE_SIZE = 15;
 
 // --- Chart Layout Constants ---
 const PLATFORM = Platform.OS;
-const MOBILE_TICKS = 6;
+const MOBILE_TICKS = 4;
+const TABLET_TICKS = 6;
 const WEB_TICKS = 10;
 const MOBILE_VALUE_STEP = 26;
-const WEB_VALUE_STEP = 14;
-const PADDING = 0;
-const Y_AXIS_WIDTH = 30;
+const TABLET_VALUE_STEP = 26;
+const WEB_VALUE_STEP = 13;
+const PADDING = 10;
+const Y_AXIS_WIDTH = 40;
 const BAR_HEIGHT = 6;
 const BAR_SPACING = 4;
 const X_AXIS_HEIGHT = 20;
@@ -60,19 +74,41 @@ const TOP_BUFFER = RANGE_LABEL_OFFSET_Y + 10;
 
 const SIDEBAR_WIDTH = 120;
 
-const { width, height } = Dimensions.get("window");
-
 // API Configuration
 const API_URL = "http://localhost:5000/api/scenarios";
 
 const Minitool_1 = () => {
+  // Get current dimensions and listen to resize events
+  const { width, height } = useDimensions();
   const [currentBatteryData, setCurrentBatteryData] =
     useState(initialBatteryData);
   const [displayedData, setDisplayedData] = useState(initialBatteryData);
+
+  const [isScrollEnabled, setIsScrollEnabled] = useState(true);
   const [toolValue, setToolValue] = useState(80.0);
   const [rangeCount, setRangeCount] = useState(0);
 
   const [isHelpVisible, setIsHelpVisible] = useState(false);
+
+  // --- Responsive Layout (memoized) ---
+  const { isMobile, isTablet, isDesktop, EFFECTIVE_SIDEBAR_WIDTH } =
+    useMemo(() => {
+      const mobile = width <= 480;
+      const tablet = width > 480 && width < 850;
+      const desktop = width >= 850;
+      let sidebarWidth = SIDEBAR_WIDTH; // Desktop default (120px)
+      if (mobile) {
+        sidebarWidth = 0;
+      } else if (tablet) {
+        sidebarWidth = 100;
+      }
+      return {
+        isMobile: mobile,
+        isTablet: tablet,
+        isDesktop: desktop,
+        EFFECTIVE_SIDEBAR_WIDTH: sidebarWidth,
+      };
+    }, [width]);
 
   // Database-related state
   const [scenarios, setScenarios] = useState([]);
@@ -89,33 +125,103 @@ const Minitool_1 = () => {
   const [dropdownTop, setDropdownTop] = useState(0);
   const [dropdownLeft, setDropdownLeft] = useState(0);
   const dropdownRef = useRef(null);
+  const [scenarioSelectedFeedback, setScenarioSelectedFeedback] =
+    useState(false);
+
+  // State for Bar Info Modal
+  const [selectedBar, setSelectedBar] = useState(null);
+  const [isBarInfoModalVisible, setIsBarInfoModalVisible] = useState(false);
 
   // --- Chart Controls Hook (extracted to useChartControls hook) ---
-  const chartControls = useChartControls();
+  const chartControls = useChartControls(width);
 
-  // --- Calculate stats for displayed data ---
-  const visibleBars = displayedData.filter((item) => item.visible);
-  const minLifespan =
-    visibleBars.length > 0
-      ? Math.min(...visibleBars.map((item) => item.lifespan))
-      : 0;
-  const maxLifespan =
-    visibleBars.length > 0
-      ? Math.max(...visibleBars.map((item) => item.lifespan))
-      : 0;
-  const barCount = 20;
+  // --- Calculate stats for displayed data (memoized) ---
+  const { visibleBars, minLifespan, maxLifespan } = useMemo(() => {
+    const visible = displayedData.filter((item) => item.visible);
+    const min =
+      visible.length > 0
+        ? Math.min(...visible.map((item) => item.lifespan))
+        : 0;
+    const max =
+      visible.length > 0
+        ? Math.max(...visible.map((item) => item.lifespan))
+        : 0;
+    return { visibleBars: visible, minLifespan: min, maxLifespan: max };
+  }, [displayedData]);
+  const barCount = displayedData.filter((item) => item.visible).length;
 
-  const chartHeight = Math.max(10, barCount * (BAR_HEIGHT + 2 * BAR_SPACING));
-  //console.log("Chart Height:", chartHeight);
-  const SVG_HEIGHT = chartHeight + X_AXIS_HEIGHT + TOP_BUFFER;
-  const SVG_WIDTH = width - PADDING * 2 - SIDEBAR_WIDTH;
-  const chartWidth =
-    SVG_WIDTH - Y_AXIS_WIDTH > 0 ? SVG_WIDTH - Y_AXIS_WIDTH : 1;
+  // --- Chart dimensions and tick configuration (memoized) ---
+  const {
+    chartHeight,
+    SVG_HEIGHT,
+    SVG_WIDTH,
+    chartWidth,
+    dynamicMax,
+    TICKS_COUNT,
+    VALUE_STEP,
+    TICK_FONT_SIZE,
+  } = useMemo(() => {
+    const height = Math.max(10, 20 * (BAR_HEIGHT + 2 * BAR_SPACING));
+    const svgHeight = height + X_AXIS_HEIGHT + TOP_BUFFER;
 
-  // --- Initial values for tools ---
-  const initialTranslateX = (80.0 / MAX_LIFESPAN) * chartWidth;
-  const initialRangeStartX = (102 / MAX_LIFESPAN) * chartWidth;
-  const initialRangeEndX = (126 / MAX_LIFESPAN) * chartWidth;
+    const maxValInData =
+      displayedData.length > 0
+        ? Math.max(...displayedData.map((d) => d.lifespan))
+        : 100;
+    const dynamicMax = maxValInData * 1.01;
+
+    const sidebarMargins = isDesktop ? 20 : 0;
+
+    const available =
+      width - PADDING * 2 - EFFECTIVE_SIDEBAR_WIDTH - sidebarMargins;
+
+    const svgWidth =
+      isMobile || isTablet ? Math.max(available, 500) : available;
+    // The chartWidth is the actual length of the X-Axis line
+    const cWidth = svgWidth - 80;
+    // Determine ticks based on device type
+    let ticksCount = WEB_TICKS;
+    let valueStep = WEB_VALUE_STEP;
+    let tickFontSize = "12";
+    if (isMobile) {
+      ticksCount = MOBILE_TICKS;
+      valueStep = MOBILE_VALUE_STEP;
+      tickFontSize = "10";
+    } else if (isTablet) {
+      ticksCount = TABLET_TICKS;
+      valueStep = TABLET_VALUE_STEP;
+      tickFontSize = "11";
+    }
+
+    return {
+      chartHeight: height,
+      SVG_HEIGHT: svgHeight,
+      SVG_WIDTH: svgWidth,
+      chartWidth: cWidth,
+      dynamicMax: dynamicMax,
+      TICKS_COUNT: ticksCount,
+      VALUE_STEP: valueStep,
+      TICK_FONT_SIZE: tickFontSize,
+    };
+  }, [
+    width,
+    isDesktop,
+    isTablet,
+    isMobile,
+    EFFECTIVE_SIDEBAR_WIDTH,
+    barCount,
+    displayedData,
+  ]);
+
+  // --- Initial values for tools (memoized) ---
+  const { initialTranslateX, initialRangeStartX, initialRangeEndX } = useMemo(
+    () => ({
+      initialTranslateX: (80.0 / dynamicMax) * chartWidth,
+      initialRangeStartX: (52 / dynamicMax) * chartWidth,
+      initialRangeEndX: (56 / dynamicMax) * chartWidth,
+    }),
+    [chartWidth, dynamicMax],
+  );
 
   // --- Value Tool Gesture Logic (extracted to useValueTool hook) ---
   const valueTool = useValueTool({
@@ -124,10 +230,11 @@ const Minitool_1 = () => {
     onValueChange: setToolValue,
     chartWidth,
     chartHeight,
-    maxLifespan: MAX_LIFESPAN,
+    maxLifespan: dynamicMax,
     toolValue,
     toolColor: TOOL_COLOR,
     X_AXIS_HEIGHT: X_AXIS_HEIGHT,
+    TOP_BUFFER: TOP_BUFFER,
   });
 
   // --- Range Tool Gesture Logic (extracted to useRangeTool hook) ---
@@ -137,13 +244,14 @@ const Minitool_1 = () => {
     onCountChange: setRangeCount,
     chartWidth,
     chartHeight,
-    maxLifespan: MAX_LIFESPAN,
-    initialStartValue: 102,
-    initialEndValue: 126,
+    maxLifespan: dynamicMax,
+    initialStartValue: 52,
+    initialEndValue: 56,
     rangeHandleSize: RANGE_HANDLE_SIZE,
     rangeToolColor: RANGE_TOOL_COLOR,
     displayedData,
     X_AXIS_HEIGHT: X_AXIS_HEIGHT,
+    TOP_BUFFER: TOP_BUFFER,
   });
 
   // --- Data Generation Modal Hook (initialized after tools) ---
@@ -174,6 +282,29 @@ const Minitool_1 = () => {
     MAX_BAR_COUNT: MAX_BAR_COUNT,
   });
 
+  const [isUploadModalVisible, setIsUploadModalVisible] = useState(false);
+  const handleUploadSuccess = (newScenario) => {
+    // Extract battery data from the scenario object
+    const batteryData = newScenario.data.dataPoints;
+    console.log("Received battery data from upload:", batteryData);
+
+    //Update tool state with the new data
+    setCurrentBatteryData(batteryData);
+    setLoadedScenarioName(newScenario.name);
+    setSelectedScenarioId(newScenario._id);
+
+    // Reset chart sorting/filters
+    chartControls.setIsSortedByColor(false);
+    chartControls.setIsSortedBySize(false);
+
+    // Refresh the dropdown list to include the new scenario
+    fetchScenarios();
+
+    // Modal closes automatically via its internal timer,
+    // but we ensure our state tracks it
+    setIsUploadModalVisible(false);
+  };
+
   // --- Animated Props for lines of the tools (range tool moved to RangeTool component) ---
 
   // --- Animations for the labels (moved to RangeTool component) ---
@@ -190,26 +321,29 @@ const Minitool_1 = () => {
     fetchScenarios();
   }, []);
 
-  // --- Sorting and filtering handlers ---
+  // --- Sorting and filtering handlers (optimized to avoid unnecessary re-renders) ---
   useEffect(() => {
-    let dataToDisplay = [...currentBatteryData];
+    setDisplayedData((prevData) => {
+      // Check if we need to update at all
+      let dataToDisplay = [...currentBatteryData];
 
-    // Apply sorting
-    if (chartControls.isSortedBySize) {
-      dataToDisplay.sort((a, b) => a.lifespan - b.lifespan);
-    } else if (chartControls.isSortedByColor) {
-      dataToDisplay.sort((a, b) => a.brand.localeCompare(b.brand));
-    }
+      // Apply sorting
+      if (chartControls.isSortedBySize) {
+        dataToDisplay.sort((a, b) => b.lifespan - a.lifespan);
+      } else if (chartControls.isSortedByColor) {
+        dataToDisplay.sort((a, b) => a.brand.localeCompare(b.brand));
+      }
 
-    // Mark which items should be visible (keep them in array with visibility flag)
-    dataToDisplay = dataToDisplay.map((item) => ({
-      ...item,
-      visible:
-        !(chartControls.hideGreenBars && item.brand === "Tough Cell") &&
-        !(chartControls.hidePurpleBars && item.brand === "Always Ready"),
-    }));
+      // Mark which items should be visible (keep them in array with visibility flag)
+      dataToDisplay = dataToDisplay.map((item) => ({
+        ...item,
+        visible:
+          !(chartControls.hideGreenBars && item.brand === "Tough Cell") &&
+          !(chartControls.hidePurpleBars && item.brand === "Always Ready"),
+      }));
 
-    setDisplayedData(dataToDisplay);
+      return dataToDisplay;
+    });
   }, [
     currentBatteryData,
     chartControls.isSortedBySize,
@@ -221,27 +355,63 @@ const Minitool_1 = () => {
   // --- Handlers for Modal(Pop up window which allows to generate random data) ---
 
   // --- Reset data to the initial one(which was diaplayed first) ---
-  const handleResetData = () => {
+  const handleResetData = useCallback(() => {
     setCurrentBatteryData(initialBatteryData);
     chartControls.setIsSortedByColor(false);
     chartControls.setIsSortedBySize(false);
-  };
+  }, [chartControls]);
 
   // --- Handlers for Adding/Removing single bars ---
-  const handleAddBarButtonPress = () => {
+  const handleAddBarButtonPress = useCallback(() => {
     chartControls.setRangeToolActive(false);
     chartControls.setValueToolActive(false);
     barGenerationModal.handleOpenModal();
-  };
+  }, [chartControls, barGenerationModal]);
 
-  const handleRemoveLastBar = () => {
+  const handleRemoveLastBar = useCallback(() => {
     if (currentBatteryData.length === 0) {
       alert(`Empty Chart.There are no batteries to remove.`);
       return;
     }
     const newData = currentBatteryData.slice(0, -1);
     setCurrentBatteryData(newData);
-  };
+  }, [currentBatteryData]);
+
+  // --- Handlers for Bar Info Modal ---
+  const handleBarPress = useCallback((index, item) => {
+    setSelectedBar({
+      brand: item.brand,
+      lifespan: item.lifespan,
+    });
+    setIsBarInfoModalVisible(true);
+  }, []);
+
+  const handleDeleteBar = useCallback(() => {
+    if (selectedBar) {
+      // Find and remove the bar by matching brand and lifespan
+      // If multiple bars have the same brand/lifespan, remove the first match
+      const actualIndex = currentBatteryData.findIndex(
+        (item) =>
+          item.brand === selectedBar.brand &&
+          item.lifespan === selectedBar.lifespan,
+      );
+
+      if (actualIndex !== -1) {
+        const newData = currentBatteryData.filter(
+          (_, idx) => idx !== actualIndex,
+        );
+        setCurrentBatteryData(newData);
+      }
+
+      setIsBarInfoModalVisible(false);
+      setSelectedBar(null);
+    }
+  }, [selectedBar, currentBatteryData]);
+
+  const handleCloseBarInfoModal = useCallback(() => {
+    setIsBarInfoModalVisible(false);
+    setSelectedBar(null);
+  }, []);
 
   // --- Database Functions ---
   const fetchScenarios = async () => {
@@ -311,9 +481,11 @@ const Minitool_1 = () => {
   const loadScenario = async (scenarioId) => {
     try {
       const response = await axios.get(`${API_URL}/${scenarioId}`);
+      console.log("Load scenario response:", response);
       if (response.data.success) {
-        const scenarioData = response.data.data;
-        setCurrentBatteryData(scenarioData.data.bars);
+        const scenarioData = response.data.dataPoints;
+        conslole.log("Loaded scenario data:", scenarioData);
+        setCurrentBatteryData(scenarioData);
         setLoadedScenarioId(scenarioId);
         setLoadedScenarioName(scenarioData.name);
         setSelectedScenarioId(scenarioId);
@@ -328,15 +500,19 @@ const Minitool_1 = () => {
     }
   };
 
-  const handleLoadScenarioFromDropdown = async (scenarioId) => {
+  const handleLoadScenarioFromDropdown = useCallback(async (scenarioId) => {
     if (!scenarioId) return;
     try {
       const response = await axios.get(`${API_URL}/${scenarioId}`);
       if (response.data.success) {
-        const scenarioData = response.data.data.data;
-        setCurrentBatteryData(scenarioData.bars);
+        const scenarioData = response.data.data;
+        setCurrentBatteryData(scenarioData.data.dataPoints);
         setLoadedScenarioName(response.data.data.name);
         setSelectedScenarioId(scenarioId);
+
+        // Visual feedback for selection
+        setScenarioSelectedFeedback(true);
+        setTimeout(() => setScenarioSelectedFeedback(false), 600);
       } else {
         alert("Failed to load scenario: " + response.data.error);
       }
@@ -344,9 +520,39 @@ const Minitool_1 = () => {
       console.error("Error loading scenario:", error);
       alert("Error loading scenario: " + error.message);
     }
-  };
+  }, []);
 
   const router = useRouter();
+
+  // --- Memoized tick labels rendering ---
+  const tickLabels = useMemo(() => {
+    const labels = [];
+    for (let i = 0; i < TICKS_COUNT; i++) {
+      const val = i * VALUE_STEP;
+      if (val >= dynamicMax.toFixed(0)) break;
+      const xPos = (val / dynamicMax) * chartWidth;
+      labels.push({
+        key: `label-${i}`,
+        x: xPos,
+        y: chartHeight + X_AXIS_HEIGHT + TOP_BUFFER / 2,
+        value: val,
+      });
+    }
+    labels.push({
+      key: `label-${labels.length}`,
+      x: chartWidth,
+      y: chartHeight + X_AXIS_HEIGHT + TOP_BUFFER / 2,
+      value: dynamicMax.toFixed(0),
+    });
+    return labels;
+  }, [TICKS_COUNT, VALUE_STEP, dynamicMax, chartWidth, chartHeight]);
+
+  // --- Memoized visible bars rendering ---
+  const visibleBarsToRender = useMemo(() => {
+    return displayedData
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => item.visible);
+  }, [displayedData]);
 
   const deleteScenario = async (scenarioId) => {
     const executeDeletion = async () => {
@@ -409,7 +615,6 @@ const Minitool_1 = () => {
     }
   };
   // Handlers for add bar modal are now in useBarGenerationModal hook
-
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={styles.container}>
@@ -497,11 +702,31 @@ const Minitool_1 = () => {
           )}
         </View>
 
-        <View style={styles.scenarioLoaderContainer}>
+        <View
+          style={[
+            styles.scenarioLoaderContainer,
+            isMobile && styles.scenarioLoaderMobile,
+            isTablet && styles.scenarioLoaderTablet,
+          ]}
+        >
           {/* --- Scenario Picker Dropdown --- */}
-          <View style={styles.scenarioPickerContainer}>
-            <Text style={styles.pickerLabel}>Select Scenario:</Text>
-            <RNPickerSelect
+          <View
+            style={[
+              styles.scenarioPickerContainer,
+              isMobile && styles.scenarioPickerMobile,
+              isTablet && styles.scenarioPickerTablet,
+            ]}
+          >
+            {/* <Text style={styles.pickerLabel}>Select Scenario:</Text> */}
+            <Dropdown
+              data={scenarios.map((scenario) => ({
+                label: scenario.name,
+                value: scenario._id,
+              }))}
+              onChange={handleLoadScenarioFromDropdown}
+              placeholder="Select scenario"
+            />
+            {/* <RNPickerSelect
               placeholder={{
                 label: "Choose a scenario to load",
                 value: null,
@@ -514,6 +739,68 @@ const Minitool_1 = () => {
               style={pickerSelectStyles}
               value={selectedScenarioId}
               useNativeAndroidPickerStyle={false}
+            /> */}
+            {/* Selection Feedback Effect */}
+            {/* {scenarioSelectedFeedback && (
+              <View
+                style={{
+                  marginTop: 8,
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  backgroundColor: "#E0F4FF",
+                  borderRadius: 8,
+                  borderLeftWidth: 4,
+                  borderLeftColor: "#2563EB",
+                }}
+              >
+                <Text
+                  style={{
+                    color: "#1e40af",
+                    fontWeight: "600",
+                    fontSize: 14,
+                  }}
+                >
+                  ✓ Scenario "{loadedScenarioName}" loaded successfully!
+                </Text>
+              </View>
+            )} */}
+          </View>
+
+          {/* Buttons Layout */}
+          <View
+            style={[
+              styles.topButtonsContainer,
+              isMobile && styles.topButtonsContainerMobile,
+              isTablet && styles.topButtonsContainerTablet,
+            ]}
+          >
+            <UniverseButton
+              title="Upload"
+              onPress={() => setIsUploadModalVisible(true)} //
+              colorScheme="primary"
+              containerStyles={
+                isMobile ? styles.topButtonMobile : styles.topButton
+              }
+            />
+            <UniverseButton
+              title="ADD BAR"
+              onPress={handleAddBarButtonPress}
+              colorScheme="primary"
+              containerStyles={
+                isMobile ? styles.topButtonMobile : styles.topButton
+              }
+            />
+            <UniverseButton
+              title={"Generate"}
+              onPress={() => {
+                chartControls.setRangeToolActive(false);
+                chartControls.setValueToolActive(false);
+                dataGenerationModal.handleOpenModal();
+              }}
+              colorScheme="primary"
+              containerStyles={
+                isMobile ? styles.topButtonMobile : styles.topButton
+              }
             />
           </View>
         </View>
@@ -522,24 +809,37 @@ const Minitool_1 = () => {
         {!dataGenerationModal.isModalVisible &&
           !barGenerationModal.isModalVisible && (
             <View
-              style={{
-                flexDirection: "row",
-                width: "100%",
-                maxHeight: 600,
-                marginTop: 20,
-              }}
+              style={[
+                {
+                  width: "95%",
+                  alignItems: "flex-start",
+                  flexDirection: "row",
+                },
+                isMobile && styles.chartAndStatsMobile,
+              ]}
             >
               <ScrollView
-                horizontal={false}
-                scrollEnabled={SVG_HEIGHT > 500}
-                style={[styles.chartContainer, { flex: 1 }]}
+                horizontal={true}
+                // Only allow scrolling if the SVG is actually wider than the screen
+                scrollEnabled={
+                  SVG_WIDTH > width - EFFECTIVE_SIDEBAR_WIDTH && isScrollEnabled
+                }
+                style={[styles.chartContainer, { flex: 1, width: "100%" }]}
+                contentContainerStyle={{
+                  width: SVG_WIDTH + Y_AXIS_WIDTH, // Use exact width to stop "infinite scrolling"
+                  paddingRight: 0, // Ensure no extra padding is added here
+                }}
               >
-                <View>
+                <View
+                  style={{
+                    width: SVG_WIDTH + Y_AXIS_WIDTH,
+                    height: SVG_HEIGHT + X_AXIS_HEIGHT,
+                  }}
+                >
                   {/* --- Render the label of value tool --- */}
                   <Animated.View
                     style={[
                       styles.toolLabelContainer,
-                      { left: Y_AXIS_WIDTH, top: TOP_BUFFER },
                       valueTool.animatedLabelStyle,
                     ]}
                   >
@@ -562,165 +862,209 @@ const Minitool_1 = () => {
 
                   {/* --- Whole bar chart --- */}
                   <Svg
-                    width={SVG_WIDTH - Y_AXIS_WIDTH}
+                    width={SVG_WIDTH + Y_AXIS_WIDTH}
                     height={SVG_HEIGHT + X_AXIS_HEIGHT}
                     style={{ zIndex: 1 }}
                   >
-                    <G x={Y_AXIS_WIDTH} y={TOP_BUFFER}>
+                    <G>
                       {/* X-Axis */}
                       <Line
                         x1="0"
-                        y1={chartHeight + X_AXIS_HEIGHT}
+                        y1={chartHeight + X_AXIS_HEIGHT + TOP_BUFFER}
                         x2={chartWidth}
-                        y2={chartHeight + X_AXIS_HEIGHT}
+                        y2={chartHeight + X_AXIS_HEIGHT + TOP_BUFFER}
                         stroke={AXIS_COLOR}
                         strokeWidth="1"
                       />
-                      {Array.from({
-                        length: PLATFORM === "web" ? WEB_TICKS : MOBILE_TICKS,
-                      }).map((_, i) => {
-                        const val =
-                          i *
-                          (PLATFORM === "web"
-                            ? WEB_VALUE_STEP
-                            : MOBILE_VALUE_STEP);
-                        const xPos = (val / MAX_LIFESPAN) * chartWidth;
-                        return (
-                          <SvgText
-                            key={`label-${i}`}
-                            x={xPos}
-                            y={chartHeight + X_AXIS_HEIGHT + 15}
-                            fill={AXIS_COLOR}
-                            fontSize="12"
-                            textAnchor="middle"
-                          >
-                            {val}
-                          </SvgText>
-                        );
-                      })}
+                      {tickLabels.map(({ key, x, y, value }) => (
+                        <SvgText
+                          key={key}
+                          x={x + 5}
+                          y={y + TOP_BUFFER}
+                          fill={AXIS_COLOR}
+                          fontSize={TICK_FONT_SIZE}
+                          textAnchor="middle"
+                        >
+                          {value}
+                        </SvgText>
+                      ))}
 
                       {/* Data Bars */}
-                      {displayedData.map(
-                        (item, index) =>
-                          item.visible && (
-                            <BatteryBar
-                              key={`bar-${index}-${item.lifespan}`}
-                              item={item}
-                              index={index}
-                              chartWidth={chartWidth}
-                              rangeStartX={rangeTool.rangeStartX}
-                              rangeEndX={rangeTool.rangeEndX}
-                              tool={chartControls.rangeToolActive}
-                              dotsOnly={chartControls.showDotsOnly}
-                              maxLifespan={MAX_LIFESPAN}
-                            />
-                          ),
-                      )}
+                      {visibleBarsToRender.map(({ item, index }) => (
+                        <BatteryBar
+                          key={`bar-${index}-${item.lifespan}`}
+                          item={item}
+                          index={index}
+                          chartWidth={chartWidth}
+                          rangeStartX={rangeTool.rangeStartX}
+                          rangeEndX={rangeTool.rangeEndX}
+                          tool={chartControls.rangeToolActive}
+                          dotsOnly={chartControls.showDotsOnly}
+                          MAX_LIFESPAN={dynamicMax}
+                          onBarPress={handleBarPress}
+                          TOP_BUFFER={TOP_BUFFER}
+                        />
+                      ))}
 
                       {/* --- Range tool (3 Line, 3 rectangles) - rendered by RangeTool hook --- */}
                       {rangeTool.renderRangeTool()}
 
                       {/* --- Value tool(1 line, 1 rectangle) - rendered by ValueTool hook --- */}
                       {valueTool.renderValueTool()}
+
+                      {/* Y-Axis */}
+                      <Line
+                        x1={0}
+                        y1={0}
+                        x2={0}
+                        y2={chartHeight + X_AXIS_HEIGHT + TOP_BUFFER}
+                        stroke={AXIS_COLOR}
+                        strokeWidth="1"
+                      />
                     </G>
-                    {/* Y-Axis */}
-                    <Line
-                      x1={Y_AXIS_WIDTH}
-                      y1={TOP_BUFFER}
-                      x2={Y_AXIS_WIDTH}
-                      y2={chartHeight + X_AXIS_HEIGHT + TOP_BUFFER}
-                      stroke={AXIS_COLOR}
-                      strokeWidth="1"
-                    />
                   </Svg>
                 </View>
               </ScrollView>
-              {/* --- Stats Sidebar --- */}
-              <View
-                style={{
-                  width: SIDEBAR_WIDTH,
-                  backgroundColor: "#f0f0f0",
-                  padding: 15,
-                  justifyContent: "flex-start",
-                  borderLeftWidth: 1,
-                  borderLeftColor: "#ccc",
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontWeight: "bold",
-                    marginBottom: 10,
-                  }}
-                >
-                  Min:
-                </Text>
-                <Text style={{ fontSize: 14, marginBottom: 15 }}>
-                  {minLifespan}
-                </Text>
 
-                <Text
+              {/* --- Stats Section --- */}
+              {isMobile ? (
+                // Mobile: Horizontal stats bar below chart
+                <View testID="mobile-stats-bar" style={styles.statsBarMobile}>
+                  <View style={styles.statItemMobile}>
+                    <Text style={styles.statLabelMobile}>Amount</Text>
+                    <Text
+                      testID="mobile-stat-amount"
+                      style={styles.statValueMobile}
+                    >
+                      {barCount}
+                    </Text>
+                  </View>
+                  <View style={[styles.statItemMobile, styles.statItemBorder]}>
+                    <Text style={styles.statLabelMobile}>Min</Text>
+                    <Text
+                      testID="mobile-stat-min"
+                      style={styles.statValueMobile}
+                    >
+                      {minLifespan}
+                    </Text>
+                  </View>
+                  <View style={styles.statItemMobile}>
+                    <Text style={styles.statLabelMobile}>Max</Text>
+                    <Text
+                      testID="mobile-stat-max"
+                      style={styles.statValueMobile}
+                    >
+                      {maxLifespan}
+                    </Text>
+                  </View>
+                </View>
+              ) : (
+                // Tablet & Desktop: Vertical sidebar (width changes based on device)
+                <View
+                  testID="stats-bar"
                   style={{
-                    fontSize: 12,
-                    fontWeight: "bold",
-                    marginBottom: 10,
+                    width: EFFECTIVE_SIDEBAR_WIDTH,
+                    height: Math.max(SVG_HEIGHT, 250),
+                    backgroundColor: "#f0f0f0",
+                    padding: isTablet ? 10 : 15,
+                    justifyContent: "space-between",
+                    borderRadius: 12,
+                    marginLeft: 10,
+                    marginTop: X_AXIS_HEIGHT / 2,
                   }}
                 >
-                  Max:
-                </Text>
-                <Text style={{ fontSize: 14, marginBottom: 15 }}>
-                  {maxLifespan}
-                </Text>
+                  {/* Center Section - Amount */}
+                  <View
+                    style={{
+                      flex: 1,
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: isTablet ? 10 : 12,
+                        fontWeight: "bold",
+                        marginBottom: 6,
+                        color: "#333",
+                      }}
+                    >
+                      Amount
+                    </Text>
+                    <Text
+                      testID="stat-amount"
+                      style={{
+                        fontSize: isTablet ? 24 : 32,
+                        fontWeight: "bold",
+                        color: "#2563eb",
+                      }}
+                    >
+                      {barCount}
+                    </Text>
+                  </View>
 
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontWeight: "bold",
-                    marginBottom: 10,
-                  }}
-                >
-                  Amount:
-                </Text>
-                <Text style={{ fontSize: 14 }}>{barCount}</Text>
-              </View>
+                  {/* Bottom Section - Min and Max */}
+                  <View
+                    style={{
+                      borderTopWidth: 1,
+                      borderTopColor: "#ccc",
+                      paddingTop: 10,
+                    }}
+                  >
+                    <View style={{ marginBottom: 8 }}>
+                      <Text
+                        style={{
+                          fontSize: isTablet ? 9 : 11,
+                          fontWeight: "bold",
+                          marginBottom: 3,
+                          color: "#666",
+                        }}
+                      >
+                        Min
+                      </Text>
+                      <Text
+                        testID="stat-min"
+                        style={{
+                          fontSize: isTablet ? 14 : 16,
+                          fontWeight: "600",
+                          color: "#1e40af",
+                        }}
+                      >
+                        {minLifespan}
+                      </Text>
+                    </View>
+
+                    <View>
+                      <Text
+                        style={{
+                          fontSize: isTablet ? 9 : 11,
+                          fontWeight: "bold",
+                          marginBottom: 3,
+                          color: "#666",
+                        }}
+                      >
+                        Max
+                      </Text>
+                      <Text
+                        testID="stat-max"
+                        style={{
+                          fontSize: isTablet ? 14 : 16,
+                          fontWeight: "600",
+                          color: "#dc2626",
+                        }}
+                      >
+                        {maxLifespan}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              )}
             </View>
           )}
         <Text style={styles.xAxisTitle}>Life Span (hours)</Text>
 
         {/* --- Chart Controls (rendered by useChartControls hook) --- */}
         {chartControls.renderControls()}
-
-        {/* --- Buttons for generating new DATA --- */}
-        <View style={styles.bottomButtonContainer}>
-          <View style={styles.buttonWrapper}>
-            <Button title="Add Bar" onPress={handleAddBarButtonPress} />
-          </View>
-          <View style={styles.buttonWrapper}>
-            <Button
-              title="Remove Last Bar"
-              onPress={handleRemoveLastBar}
-              color="#d9534f"
-            />
-          </View>
-          <View style={styles.buttonWrapper}>
-            <Button
-              title="Reset to Initial"
-              onPress={handleResetData}
-              color="#ff8533"
-            />
-          </View>
-          <View style={styles.buttonWrapper}>
-            <Button
-              title="Generate New Data"
-              onPress={() => {
-                chartControls.setRangeToolActive(false);
-                chartControls.setValueToolActive(false);
-                dataGenerationModal.handleOpenModal();
-              }}
-              color="#47d147"
-            />
-          </View>
-        </View>
 
         {/* --- Database Scenario Management Buttons --- */}
         <View style={styles.databaseButtonContainer}>
@@ -731,7 +1075,7 @@ const Minitool_1 = () => {
               color="#0066cc"
             />
           </View>
-          <View style={styles.buttonWrapper}>
+          {/* <View style={styles.buttonWrapper}>
             <Button
               title="Load Scenario"
               onPress={() => {
@@ -740,7 +1084,7 @@ const Minitool_1 = () => {
               }}
               color="#009900"
             />
-          </View>
+          </View> */}
         </View>
 
         {/* --- Pop-up window for generating data set --- */}
@@ -748,6 +1092,24 @@ const Minitool_1 = () => {
 
         {/* --- Pop-up window for adding a single bar --- */}
         {barGenerationModal.renderModal()}
+
+        {/* --- Pop-up window for uploading data from file --- */}
+        {/* --- Pop-up window for uploading data from file --- */}
+        <UploadScenarioModal
+          visible={isUploadModalVisible}
+          onClose={() => setIsUploadModalVisible(false)}
+          toolType="minitool1"
+          onSuccess={handleUploadSuccess}
+          onError={(err) => console.error("Upload Error:", err)}
+        />
+
+        {/* --- Bar Info Modal --- */}
+        <BarInfoModal
+          visible={isBarInfoModalVisible}
+          barData={selectedBar}
+          onClose={handleCloseBarInfoModal}
+          onDelete={handleDeleteBar}
+        />
 
         {/* --- Scenarios Management Modal --- */}
         <Modal
@@ -779,7 +1141,7 @@ const Minitool_1 = () => {
               </View>
 
               {/* Load Scenario Section */}
-              <View style={styles.loadScenarioSection}>
+              {/* <View style={styles.loadScenarioSection}>
                 <Text style={styles.sectionTitle}>Load Saved Scenario</Text>
                 {isLoadingScenarios ? (
                   <View style={styles.loadingContainer}>
@@ -825,7 +1187,7 @@ const Minitool_1 = () => {
                     No scenarios saved yet
                   </Text>
                 )}
-              </View>
+              </View> */}
 
               <TouchableOpacity
                 onPress={() => setShowScenariosModal(false)}
@@ -859,8 +1221,11 @@ const styles = StyleSheet.create({
     width: "95%",
     alignSelf: "center",
     flexDirection: "row",
-    alignItems: "center",
-    position: "relative",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 15,
+    paddingHorizontal: 15,
+    paddingVertical: 15,
   },
   loadingContainer: {
     padding: 20,
@@ -876,6 +1241,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 15,
     flexWrap: "wrap",
+    width: "95%",
   },
   legendItem: {
     flexDirection: "row",
@@ -941,9 +1307,9 @@ const styles = StyleSheet.create({
   },
   chartContainer: {
     width: "100%",
-    marginTop: 20,
     position: "relative",
     minHeight: 100,
+    zIndex: 10,
   },
   xAxisTitle: {
     fontSize: 12,
@@ -951,9 +1317,12 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   toolLabelContainer: {
+    left: -Y_AXIS_WIDTH / 2,
+    top: 0,
     position: "absolute",
     height: TOOL_LABEL_OFFSET_Y,
     alignItems: "center",
+    justifyContent: "center",
     zIndex: 15,
   },
   toolLabelText: {
@@ -965,10 +1334,12 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   rangeLabelContainer: {
+    left: Y_AXIS_WIDTH / 2,
+    top: -X_AXIS_HEIGHT / 2,
     position: "absolute",
-    top: 0,
-    height: RANGE_LABEL_OFFSET_Y,
+    height: RANGE_LABEL_OFFSET_Y + TOP_BUFFER,
     alignItems: "center",
+    justifyContent: "center",
     zIndex: 10,
   },
   rangeLabelText: {
@@ -992,6 +1363,103 @@ const styles = StyleSheet.create({
   buttonWrapper: {
     flex: 1,
     minWidth: 100,
+  },
+  topButtonsContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+    marginLeft: 15,
+    flex: 1,
+    flexWrap: "wrap",
+    marginTop: 6,
+    marginBottom: 6,
+  },
+  topButtonsContainerMobile: {
+    gap: 4,
+    flex: 1,
+    flexWrap: "wrap",
+    width: "95%",
+    alignSelf: "center",
+    marginLeft: 0,
+  },
+  topButton: {
+    minWidth: 140,
+    flex: 1,
+    minHeight: 40,
+    paddingHorizontal: 30,
+  },
+  topButtonMobile: {
+    minWidth: 100,
+    flex: 1,
+    minHeight: 30,
+    paddingHorizontal: 15,
+  },
+  // --- Mobile Responsive Styles ---
+  scenarioLoaderMobile: {
+    flexDirection: "column",
+    gap: 15,
+  },
+  scenarioPickerMobile: {
+    width: "95%",
+    alignSelf: "center",
+    marginBottom: 0,
+  },
+  chartAndStatsMobile: {
+    flexDirection: "column",
+    marginTop: 20,
+    width: "95%",
+  },
+  statsBarMobile: {
+    width: "95%",
+    alignSelf: "center",
+    flexDirection: "row",
+    backgroundColor: "#f0f0f0",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    marginTop: 12,
+    justifyContent: "space-around",
+  },
+  statItemMobile: {
+    alignItems: "center",
+    flex: 1,
+  },
+  statItemBorder: {
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: "#ccc",
+  },
+  statLabelMobile: {
+    fontSize: 11,
+    fontWeight: "bold",
+    color: "#666",
+    marginBottom: 4,
+  },
+  statValueMobile: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#2563eb",
+  },
+  // --- Tablet Responsive Styles ---
+  scenarioLoaderTablet: {
+    flexDirection: "column",
+    gap: 12,
+    paddingHorizontal: 10,
+  },
+  scenarioPickerTablet: {
+    width: "100%",
+    alignSelf: "center",
+    marginBottom: 0,
+  },
+  topButtonsContainerTablet: {
+    width: "100%",
+    alignSelf: "center",
+    marginLeft: 0,
+    marginTop: 10,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
   },
   // Database/Scenarios styles
   databaseButtonContainer: {
@@ -1118,9 +1586,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   scenarioPickerContainer: {
-    width: "90%",
-    marginBottom: 10,
-    alignSelf: "center",
+    flex: 1,
+    minWidth: 200,
   },
   pickerLabel: {
     fontSize: 14,
@@ -1135,29 +1602,55 @@ const pickerSelectStyles = StyleSheet.create({
   inputIOS: {
     fontSize: 16,
     paddingVertical: 12,
-    paddingHorizontal: 10,
-    borderWidth: 1,
-    borderColor: "gray",
-    borderRadius: 4,
+    paddingHorizontal: 15,
+    borderWidth: 2,
+    borderColor: "#ADD8E6",
+    borderRadius: 12,
     color: "black",
-    paddingRight: 30,
+    paddingRight: 50,
     backgroundColor: "white",
     marginBottom: 10,
+    shadowColor: "#87CEEB",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
   },
   inputAndroid: {
     fontSize: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: "gray",
-    borderRadius: 4,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    borderWidth: 2,
+    borderColor: "#ADD8E6",
+    borderRadius: 12,
     color: "black",
-    paddingRight: 30,
+    paddingRight: 50,
     backgroundColor: "white",
     marginBottom: 10,
+    shadowColor: "#87CEEB",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  inputWeb: {
+    fontSize: 16,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    borderWidth: 2,
+    borderColor: "#ADD8E6",
+    borderRadius: 12,
+    color: "black",
+    paddingRight: 50,
+    backgroundColor: "white",
+    marginBottom: 10,
+    shadowColor: "#87CEEB",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 8,
   },
   placeholder: {
-    color: "gray",
+    color: "#999",
   },
 });
 

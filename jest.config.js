@@ -1,29 +1,12 @@
 module.exports = {
-  preset: 'react-native',
-  setupFilesAfterEnv: ['./jest.setup.js'],
+  preset: "jest-expo",
+  setupFilesAfterEnv: ["./jest.setup.js"],
 
-  transform: {
-    '^.+\\.(js|jsx|ts|tsx)$': 'babel-jest',
-  },
-  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   transformIgnorePatterns: [
-    'node_modules/(?!(react-native'
-      + '|@react-native'
-      + '|react-native-reanimated'
-      + '|react-native-vector-icons'
-      + '|react-native-gesture-handler'
-      + '|react-native-gifted-charts'
-      + '|d3-scale'
-      + '|d3-array'
-      + '|d3-interpolate'
-      + '|d3-format'
-      + '|d3-shape'
-      + '|d3-color'
-      + '|d3-time'
-      + '|d3-time-format'
-      + '|internmap'
-      + '|react-native-paper'
-      + '|react-native-svg'
-    + ')/)',
+    "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|react-native-gifted-charts|d3-.*|internmap|react-native-reanimated|react-native-paper|react-native-linear-gradient|react-native-element-dropdown|react-native-css-interop)",
   ],
+
+  moduleNameMapper: {
+    "^nativewind/(.*)$": "nativewind/$1",
+  },
 };

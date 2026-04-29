@@ -224,6 +224,58 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
+  topRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    gap: 12,
+    zIndex: 100,
+  },
+  topRowMobile: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  dropdownWrapper: {
+    width: 300,
+    position: "relative",
+  },
+  dropdownWrapperMobile: {
+    width: "100%",
+  },
+  loadingIndicator: {
+    position: "absolute",
+    right: 50,
+    top: 16,
+  },
+  uploadButtonWrapper: {
+    marginTop: 4,
+    marginBottom: 14,
+  },
+  uploadButtonWrapperMobile: {
+    width: "100%",
+  },
+  uploadButton: {
+    minWidth: 140,
+    minHeight: 44,
+    paddingHorizontal: 24,
+  },
+  uploadButtonMobile: {
+    width: "100%",
+    minHeight: 44,
+  },
+  chartSectionMobile: {
+    marginHorizontal: 0,
+  },
+  controlsSectionMobile: {
+    height: 700,
+    flexDirection: "column",
+    alignItems: "stretch",
+    marginHorizontal: 6,
+  },
   dropdownContainer: {
     alignSelf: "center",
     width: 300,

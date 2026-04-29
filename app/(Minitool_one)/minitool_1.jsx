@@ -60,10 +60,16 @@ const TOP_BUFFER = RANGE_LABEL_OFFSET_Y + 10;
 
 const SIDEBAR_WIDTH = 120;
 
-const { width, height } = Dimensions.get("window");
+const DEV_MACHINE_IP = "192.168.0.176";
 
 // API Configuration
-const API_URL = "http://localhost:5000/api/scenarios";
+const API_URL =
+  PLATFORM === "web"
+    ? "http://localhost:5000/api/scenarios"
+    : `http://${DEV_MACHINE_IP}:5000/api/scenarios`;
+
+// API Configuration
+//const API_URL = "http://localhost:5000/api/scenarios";
 
 const Minitool_1 = () => {
   const [currentBatteryData, setCurrentBatteryData] =
@@ -271,38 +277,43 @@ const Minitool_1 = () => {
 
   const saveScenario = async () => {
     if (!scenarioName.trim()) {
-      alert(`Input Error.Please enter a scenario name`);
+      alert(`Input Error. Please enter a scenario name`);
       return;
     }
 
     try {
       setIsSavingScenario(true);
-      const response = await axios.post(API_URL, {
+
+      const payload = {
         name: scenarioName,
-        description: "Battery lifespan scenario",
+        description: "",
         toolType: "minitool1",
         data: {
-          bars: currentBatteryData,
-          minLifespan:
-            displayedData.length > 0
-              ? Math.min(...displayedData.map((item) => item.lifespan))
-              : null,
-          maxLifespan:
-            displayedData.length > 0
-              ? Math.max(...displayedData.map((item) => item.lifespan))
-              : null,
+          originalFileName: "battery_data.csv",
+          columns: ["lifespan", "brand"],
+          dataPoints: currentBatteryData,
         },
-      });
+      };
+
+      console.log("Saving scenario with payload:", payload);
+      const response = await axios.post(API_URL, payload);
 
       if (response.data.success) {
-        alert(`Success.Scenario saved successfully`);
+        alert(`Success. Scenario saved successfully`);
+
+        // Update the local list of scenarios with the returned data
         setScenarios([...scenarios, response.data.data]);
+
+        // Reset UI state
         setScenarioName("");
         setShowScenariosModal(false);
       }
     } catch (error) {
+      if (error.response) {
+        console.error("Server Error Data:", error.response.data);
+      }
       console.error("Error saving scenario:", error);
-      alert(`Error.Failed to save scenario to database`);
+      alert(`Error. Failed to save scenario to database`);
     } finally {
       setIsSavingScenario(false);
     }

@@ -14,27 +14,39 @@ const validateData = (data, toolType) => {
 
   switch (toolType) {
     case "minitool1":
-      // Minitool 1: data object should have bars array and min/max lifespan
-      if (!data.bars || !Array.isArray(data.bars)) {
-        throw new Error("Data must have a bars array for minitool1");
-      }
+      // Access the 'data' sub-object from the request body
+      const scenarioData = data;
+      // 1. Validate dataPoints array exists
       if (
-        typeof data.minLifespan !== "number" ||
-        typeof data.maxLifespan !== "number"
+        !scenarioData ||
+        !scenarioData.dataPoints ||
+        !Array.isArray(scenarioData.dataPoints)
       ) {
-        throw new Error(
-          "Data must have minLifespan and maxLifespan numbers for minitool1",
-        );
+        throw new Error("Data must have a dataPoints array for minitool1");
       }
-      return data.bars.every(
+
+      // 2. Validate columns array exists
+      if (!scenarioData.columns || !Array.isArray(scenarioData.columns)) {
+        throw new Error("Data must have a columns array for minitool1");
+      }
+
+      // 3. (Optional) Validate originalFileName is a string or null
+      if (
+        scenarioData.originalFileName !== null &&
+        typeof scenarioData.originalFileName !== "string"
+      ) {
+        throw new Error("originalFileName must be a string or null");
+      }
+
+      // 4. Validate each item in dataPoints
+      return scenarioData.dataPoints.every(
         (item) =>
           typeof item === "object" &&
-          item.brand &&
+          typeof item.brand === "string" &&
           typeof item.lifespan === "number" &&
-          item.lifespan >= 1 &&
-          item.lifespan <= 130,
+          item.lifespan >= 0 &&
+          item.lifespan <= 150,
       );
-
     case "minitool2_cholesterol":
       // Minitool 2 - Cholesterol: data object should have dataBefore, dataAfter
       if (!data.dataBefore || !data.dataAfter) {
@@ -170,9 +182,11 @@ router.get("/:id", async (req, res) => {
  */
 router.post("/", async (req, res) => {
   try {
-    const { name, description, toolType, data, minLifespan, maxLifespan } =
-      req.body;
+    // 1. Destructure only the fields present in your new schema
+    // Removed minLifespan and maxLifespan from destructuring
+    const { name, description, toolType, data } = req.body;
 
+    // 2. Basic Validation
     if (!name) {
       return res.status(400).json({
         success: false,
@@ -183,8 +197,7 @@ router.post("/", async (req, res) => {
     if (!toolType) {
       return res.status(400).json({
         success: false,
-        error:
-          "toolType is required (minitool1, minitool2_cholesterol, minitool2_speedtrap, or minitool3)",
+        error: "toolType is required (minitool1, etc.)",
       });
     }
 
@@ -195,8 +208,9 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // Validate data structure based on toolType
+    // 3. Structure Validation
     try {
+      // Pass the nested 'data' object to the validator
       if (!validateData(data, toolType)) {
         return res.status(400).json({
           success: false,
@@ -210,13 +224,13 @@ router.post("/", async (req, res) => {
       });
     }
 
+    // 4. Create Scenario with the new structure
     const scenario = new Scenario({
       name,
       description: description || "",
       toolType,
-      data,
-      minLifespan: minLifespan || null,
-      maxLifespan: maxLifespan || null,
+      data, // This contains { originalFileName, columns, dataPoints }
+      // minLifespan and maxLifespan are no longer top-level fields
     });
 
     await scenario.save();
@@ -305,5 +319,28 @@ router.delete("/:id", async (req, res) => {
     });
   }
 });
+
+/**
+ * POST /api/scenarios/upload
+ * Upload a CSV or Excel file, parse it, validate it, and save as a Scenario.
+ *
+ * The multer error handler wraps the upload middleware so that
+ * file-type and file-size errors return a clean 400 instead of crashing.
+ */
+router.post(
+  "/upload",
+  (req, res, next) => {
+    upload.single("file")(req, res, (err) => {
+      if (err) {
+        return res.status(400).json({
+          success: false,
+          error: err.message || "File upload failed.",
+        });
+      }
+      next();
+    });
+  },
+  uploadDataset,
+);
 
 module.exports = router;

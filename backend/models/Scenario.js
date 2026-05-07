@@ -21,6 +21,15 @@ const scenarioSchema = new mongoose.Schema(
       ],
       required: true,
     },
+    /**
+     * Polymorphic per-toolType payload. Validation lives in
+     * utils/scenarioValidator.js (see canonicalizeFromRows / validateCanonical).
+     *
+     * NOTE: Mongoose cannot detect in-place mutations of a Mixed field, so any
+     * route that updates an existing document MUST call
+     *   scenario.markModified("data");
+     * before scenario.save(). The PUT handler in routes/scenarios.js does this.
+     */
     data: {
       type: mongoose.Schema.Types.Mixed,
       required: true,

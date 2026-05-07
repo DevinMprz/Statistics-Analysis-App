@@ -24,7 +24,7 @@ import LegendPanel from './components/LegendPanel';
 import { CHART_DEFAULTS, DEFAULT_PRESETS } from './config/scenarios';
 
 const screenWidth = Dimensions.get('window').width;
-const SMALL_SCREEN_THRESHOLD = 400;
+const SMALL_SCREEN_THRESHOLD = 900;
 const TOOL_TYPE = 'minitool2_cholesterol';
 const API_URL = 'http://localhost:5000/api/scenarios';
 
@@ -171,7 +171,7 @@ const CholesterolPage = () => {
   // --- Render ------------------------------------------------------------- //
   const active = scenarios[selectedScenario];
   const chartWidth =
-    screenWidth < SMALL_SCREEN_THRESHOLD ? screenWidth * 0.9 : screenWidth * 0.8;
+    screenWidth < SMALL_SCREEN_THRESHOLD ? screenWidth * 0.9 : screenWidth * 0.6;
 
   const chartSettings = useMemo(
     () =>

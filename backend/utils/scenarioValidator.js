@@ -15,8 +15,7 @@
 
 const VALID_TOOL_TYPES = [
   "minitool1",
-  "minitool2_cholesterol",
-  "minitool2_speedtrap",
+  "minitool2",
   "minitool3",
 ];
 
@@ -58,11 +57,10 @@ function validateCanonical(data, toolType) {
       return true;
     }
 
-    case "minitool2_cholesterol":
-    case "minitool2_speedtrap": {
+    case "minitool2": {
       if (!Array.isArray(data.dataBefore) || !Array.isArray(data.dataAfter)) {
         throw new Error(
-          `${toolType}: data.dataBefore and data.dataAfter must be arrays.`,
+          "minitool2: data.dataBefore and data.dataAfter must be arrays.",
         );
       }
       if (
@@ -70,7 +68,7 @@ function validateCanonical(data, toolType) {
         !data.dataAfter.every(isFiniteNumber)
       ) {
         throw new Error(
-          `${toolType}: dataBefore and dataAfter must contain only numbers.`,
+          "minitool2: dataBefore and dataAfter must contain only numbers.",
         );
       }
       return true;
@@ -155,14 +153,13 @@ function canonicalizeFromRows(rows, toolType) {
       return data;
     }
 
-    case "minitool2_cholesterol":
-    case "minitool2_speedtrap": {
+    case "minitool2": {
       const sample = rows[0];
       const beforeKey = findKey(sample, "before");
       const afterKey = findKey(sample, "after");
       if (!beforeKey || !afterKey) {
         throw new Error(
-          `${toolType} expects columns 'before' and 'after'. Found: ` +
+          "minitool2 expects columns 'before' and 'after'. Found: " +
             Object.keys(sample).join(", "),
         );
       }

@@ -25,7 +25,7 @@ import { CHART_DEFAULTS, DEFAULT_PRESETS } from './config/scenarios';
 
 const screenWidth = Dimensions.get('window').width;
 const SMALL_SCREEN_THRESHOLD = 900;
-const TOOL_TYPE = 'minitool2_cholesterol';
+const TOOL_TYPE = 'minitool2';
 const API_URL = 'http://localhost:5000/api/scenarios';
 
 /**

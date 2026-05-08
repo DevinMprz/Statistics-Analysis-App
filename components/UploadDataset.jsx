@@ -29,7 +29,7 @@ const API_URL = `${API_BASE}/api/datasets/upload`;
  * Props:
  *   name        – (string)  scenario name
  *   description – (string)  optional description
- *   toolType    – (string)  one of: minitool1, minitool2_cholesterol, minitool2_speedtrap, minitool3
+ *   toolType    – (string)  one of: minitool1, minitool2, minitool3
  *   onSuccess   – (fn)  callback receiving the created scenario object
  *   onError     – (fn)  callback receiving the error message string
  */

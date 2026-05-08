@@ -270,3 +270,5 @@ export const useDotPlotTools = ({ initialIntervalWidth = 5 } = {}) => {
     hasAnyLines,
   };
 };
+
+export default () => null;

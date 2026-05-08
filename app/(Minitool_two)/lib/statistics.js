@@ -138,3 +138,5 @@ export const bucketCounts = (values, boundaries) => {
   }
   return counts;
 };
+
+export default () => null;

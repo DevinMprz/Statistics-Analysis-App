@@ -38,15 +38,14 @@ router.get("/tool/:toolType", async (req, res) => {
   try {
     const validToolTypes = [
       "minitool1",
-      "minitool2_cholesterol",
-      "minitool2_speedtrap",
+      "minitool2",
       "minitool3",
     ];
     if (!validToolTypes.includes(req.params.toolType)) {
       return res.status(400).json({
         success: false,
         error:
-          "Invalid toolType. Must be minitool1, minitool2_cholesterol, minitool2_speedtrap, or minitool3",
+          "Invalid toolType. Must be minitool1, minitool2, or minitool3",
       });
     }
 
@@ -112,7 +111,7 @@ router.post("/", async (req, res) => {
       return res.status(400).json({
         success: false,
         error:
-          "toolType is required (minitool1, minitool2_cholesterol, minitool2_speedtrap, or minitool3)",
+          "toolType is required (minitool1, minitool2, or minitool3)",
       });
     }
 

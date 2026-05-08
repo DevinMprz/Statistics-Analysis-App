@@ -15,8 +15,7 @@ const scenarioSchema = new mongoose.Schema(
       type: String,
       enum: [
         "minitool1",
-        "minitool2_cholesterol",
-        "minitool2_speedtrap",
+        "minitool2",
         "minitool3",
       ],
       required: true,

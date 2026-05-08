@@ -7,8 +7,8 @@ const Minitool_2_layout = () => {
     <>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen
-          name="cholesterol"
-          options={{ title: "Cholesterol Levels" }}
+          name="minitool_2"
+          options={{ title: "Minitool 2" }}
         />
       </Stack>
 

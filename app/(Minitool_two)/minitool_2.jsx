@@ -77,7 +77,7 @@ const adaptDbScenario = (s) => {
   };
 };
 
-const CholesterolPage = () => {
+const Minitool2Page = () => {
   const [selectedScenario, setSelectedScenario] = useState('cholesterol');
   const [scenarios, setScenarios] = useState(DEFAULT_PRESETS);
   const [isLoadingScenarios, setIsLoadingScenarios] = useState(false);
@@ -204,7 +204,7 @@ const CholesterolPage = () => {
         <ScrollView contentContainerStyle={styles.scrollViewContent}>
           <View style={styles.moduleContainer}>
             <Text style={styles.moduleTitle}>
-              Minitool 2: Cholesterol &amp; Speed Trap Scenarios
+              Minitool 2: Dot Plot Scenarios
             </Text>
 
             {active?.isFromDb && (
@@ -510,4 +510,4 @@ const pickerSelectStyles = StyleSheet.create({
   },
 });
 
-export default CholesterolPage;
+export default Minitool2Page;

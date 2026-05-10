@@ -2,87 +2,13 @@ const express = require("express");
 const Scenario = require("../models/Scenario");
 const upload = require("../config/multerConfig");
 const { uploadDataset } = require("../controllers/uploadController");
+const { validateCanonical } = require("../utils/scenarioValidator");
 
 const router = express.Router();
 
-/**
- * Validation functions for different tool types
- */
-const validateData = (data, toolType) => {
-  // Data object is flexible - validate based on toolType
-  if (typeof data !== "object" || data === null) {
-    throw new Error("Data must be an object");
-  }
-
-  switch (toolType) {
-    case "minitool1":
-      // Minitool 1: data object should have bars array and min/max lifespan
-      if (!data.bars || !Array.isArray(data.bars)) {
-        throw new Error("Data must have a bars array for minitool1");
-      }
-      if (
-        typeof data.minLifespan !== "number" ||
-        typeof data.maxLifespan !== "number"
-      ) {
-        throw new Error(
-          "Data must have minLifespan and maxLifespan numbers for minitool1",
-        );
-      }
-      return data.bars.every(
-        (item) =>
-          typeof item === "object" &&
-          item.brand &&
-          typeof item.lifespan === "number" &&
-          item.lifespan >= 1 &&
-          item.lifespan <= 130,
-      );
-
-    case "minitool2_cholesterol":
-      // Minitool 2 - Cholesterol: data object should have dataBefore, dataAfter
-      if (!data.dataBefore || !data.dataAfter) {
-        throw new Error(
-          "Cholesterol scenario must have dataBefore and dataAfter",
-        );
-      }
-      return (
-        Array.isArray(data.dataBefore) &&
-        Array.isArray(data.dataAfter) &&
-        data.dataBefore.every((item) => typeof item === "number") &&
-        data.dataAfter.every((item) => typeof item === "number")
-      );
-
-    case "minitool2_speedtrap":
-      // Minitool 2 - Speed Trap: data object should have dataBefore, dataAfter
-      if (!data.dataBefore || !data.dataAfter) {
-        throw new Error(
-          "Speed trap scenario must have dataBefore and dataAfter",
-        );
-      }
-      return (
-        Array.isArray(data.dataBefore) &&
-        Array.isArray(data.dataAfter) &&
-        data.dataBefore.every((item) => typeof item === "number") &&
-        data.dataAfter.every((item) => typeof item === "number")
-      );
-
-    case "minitool3":
-      // Minitool 3: data object should have currentData array with x and y values
-      if (!data.currentData || !Array.isArray(data.currentData)) {
-        throw new Error("Minitool 3 scenario must have currentData array");
-      }
-      return data.currentData.every(
-        (item) =>
-          typeof item === "object" &&
-          typeof item.x === "number" &&
-          typeof item.y === "number",
-      );
-
-    default:
-      throw new Error(
-        "Invalid toolType. Supported: minitool1, minitool2_cholesterol, minitool2_speedtrap, minitool3",
-      );
-  }
-};
+// Thin wrapper kept for backwards compatibility within this file.
+// All validation logic lives in utils/scenarioValidator.js (single source of truth).
+const validateData = (data, toolType) => validateCanonical(data, toolType);
 
 /**
  * GET /api/scenarios
@@ -112,15 +38,14 @@ router.get("/tool/:toolType", async (req, res) => {
   try {
     const validToolTypes = [
       "minitool1",
-      "minitool2_cholesterol",
-      "minitool2_speedtrap",
+      "minitool2",
       "minitool3",
     ];
     if (!validToolTypes.includes(req.params.toolType)) {
       return res.status(400).json({
         success: false,
         error:
-          "Invalid toolType. Must be minitool1, minitool2_cholesterol, minitool2_speedtrap, or minitool3",
+          "Invalid toolType. Must be minitool1, minitool2, or minitool3",
       });
     }
 
@@ -186,7 +111,7 @@ router.post("/", async (req, res) => {
       return res.status(400).json({
         success: false,
         error:
-          "toolType is required (minitool1, minitool2_cholesterol, minitool2_speedtrap, or minitool3)",
+          "toolType is required (minitool1, minitool2, or minitool3)",
       });
     }
 
@@ -264,6 +189,9 @@ router.put("/:id", async (req, res) => {
         });
       }
       scenario.data = data;
+      // `data` is a Mixed-typed field, so Mongoose cannot detect deep mutations
+      // automatically. We mark it dirty explicitly to guarantee the write.
+      scenario.markModified("data");
     }
     if (minLifespan !== undefined) scenario.minLifespan = minLifespan;
     if (maxLifespan !== undefined) scenario.maxLifespan = maxLifespan;

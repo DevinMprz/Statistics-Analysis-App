@@ -22,7 +22,7 @@ export default function MinitoolTwoMenu() {
           {/* Changed from styles.buttonsRow to styles.buttonsContainer for clarity */}
           <View style={styles.buttonsContainer}>
             <CustomButton
-              hadlePress={() => router.push("cholesterol")}
+              hadlePress={() => router.push("minitool_2")}
               title="Cholesterol Level Scenario"
               containerStyles={buttonTailwind} // Use updated Tailwind string
               textStyles={buttonTextTailwind}

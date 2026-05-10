@@ -58,3 +58,5 @@ export const pickerSelectStyles = StyleSheet.create({
     marginRight: 10,
   },
 });
+
+export default () => null;

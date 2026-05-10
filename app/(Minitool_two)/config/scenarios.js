@@ -56,3 +56,5 @@ export const DEFAULT_PRESETS = {
     }),
   },
 };
+
+export default () => null;

@@ -24,8 +24,8 @@ import LegendPanel from './components/LegendPanel';
 import { CHART_DEFAULTS, DEFAULT_PRESETS } from './config/scenarios';
 
 const screenWidth = Dimensions.get('window').width;
-const SMALL_SCREEN_THRESHOLD = 400;
-const TOOL_TYPE = 'minitool2_cholesterol';
+const SMALL_SCREEN_THRESHOLD = 900;
+const TOOL_TYPE = 'minitool2';
 const API_URL = 'http://localhost:5000/api/scenarios';
 
 /**
@@ -77,7 +77,7 @@ const adaptDbScenario = (s) => {
   };
 };
 
-const CholesterolPage = () => {
+const Minitool2Page = () => {
   const [selectedScenario, setSelectedScenario] = useState('cholesterol');
   const [scenarios, setScenarios] = useState(DEFAULT_PRESETS);
   const [isLoadingScenarios, setIsLoadingScenarios] = useState(false);
@@ -171,7 +171,7 @@ const CholesterolPage = () => {
   // --- Render ------------------------------------------------------------- //
   const active = scenarios[selectedScenario];
   const chartWidth =
-    screenWidth < SMALL_SCREEN_THRESHOLD ? screenWidth * 0.9 : screenWidth * 0.8;
+    screenWidth < SMALL_SCREEN_THRESHOLD ? screenWidth * 0.9 : screenWidth * 0.6;
 
   const chartSettings = useMemo(
     () =>
@@ -204,7 +204,7 @@ const CholesterolPage = () => {
         <ScrollView contentContainerStyle={styles.scrollViewContent}>
           <View style={styles.moduleContainer}>
             <Text style={styles.moduleTitle}>
-              Minitool 2: Cholesterol &amp; Speed Trap Scenarios
+              Minitool 2: Dot Plot Scenarios
             </Text>
 
             {active?.isFromDb && (
@@ -510,4 +510,4 @@ const pickerSelectStyles = StyleSheet.create({
   },
 });
 
-export default CholesterolPage;
+export default Minitool2Page;

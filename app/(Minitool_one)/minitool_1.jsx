@@ -293,7 +293,7 @@ const Minitool_1 = () => {
   const [isUploadModalVisible, setIsUploadModalVisible] = useState(false);
   const handleUploadSuccess = (newScenario) => {
     // Extract battery data from the scenario object
-    const batteryData = newScenario.data.dataPoints;
+    const batteryData = newScenario.data.bars;
     console.log("Received battery data from upload:", batteryData);
 
     //Update tool state with the new data
@@ -456,36 +456,20 @@ const Minitool_1 = () => {
 
     try {
       setIsSavingScenario(true);
-
-      const payload = {
-
       const payload = {
         name: scenarioName,
         description: "",
-        description: "",
         toolType: "minitool1",
         data: {
-          originalFileName: "battery_data.csv",
-          columns: ["lifespan", "brand"],
-          dataPoints: currentBatteryData,
+          bars: currentBatteryData,
+          minLifespan: barCount > 0 ? minLifespan : 0,
+          maxLifespan: barCount > 0 ? maxLifespan : 0,
         },
       };
 
-      console.log("Saving scenario with payload:", payload);
-      const response = await axios.post(API_URL, payload);
-          originalFileName: "battery_data.csv",
-          columns: ["lifespan", "brand"],
-          dataPoints: currentBatteryData,
-        },
-      };
-
-      console.log("Saving scenario with payload:", payload);
       const response = await axios.post(API_URL, payload);
 
       if (response.data.success) {
-        alert(`Success. Scenario saved successfully`);
-
-        // Update the local list of scenarios with the returned data
         alert(`Success. Scenario saved successfully`);
 
         // Update the local list of scenarios with the returned data
@@ -506,7 +490,6 @@ const Minitool_1 = () => {
       }
       console.error("Error saving scenario:", error);
       alert(`Error. Failed to save scenario to database`);
-      alert(`Error. Failed to save scenario to database`);
     } finally {
       setIsSavingScenario(false);
     }
@@ -517,9 +500,9 @@ const Minitool_1 = () => {
       const response = await axios.get(`${API_URL}/${scenarioId}`);
       console.log("Load scenario response:", response);
       if (response.data.success) {
-        const scenarioData = response.data.dataPoints;
-        conslole.log("Loaded scenario data:", scenarioData);
-        setCurrentBatteryData(scenarioData);
+        const scenarioData = response.data.data;
+        console.log("Loaded scenario data:", scenarioData);
+        setCurrentBatteryData(scenarioData.data.bars);
         setLoadedScenarioId(scenarioId);
         setLoadedScenarioName(scenarioData.name);
         setSelectedScenarioId(scenarioId);
@@ -540,7 +523,7 @@ const Minitool_1 = () => {
       const response = await axios.get(`${API_URL}/${scenarioId}`);
       if (response.data.success) {
         const scenarioData = response.data.data;
-        setCurrentBatteryData(scenarioData.data.dataPoints);
+        setCurrentBatteryData(scenarioData.data.bars);
         setLoadedScenarioName(response.data.data.name);
         setSelectedScenarioId(scenarioId);
 

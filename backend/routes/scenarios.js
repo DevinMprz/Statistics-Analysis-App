@@ -1,5 +1,8 @@
 const express = require("express");
 const Scenario = require("../models/Scenario");
+const upload = require("../config/multerConfig");
+const { uploadDataset } = require("../controllers/uploadController");
+const { validateCanonical } = require("../utils/scenarioValidator");
 
 const router = express.Router();
 
@@ -120,17 +123,11 @@ router.get("/", async (req, res) => {
  */
 router.get("/tool/:toolType", async (req, res) => {
   try {
-    const validToolTypes = [
-      "minitool1",
-      "minitool2_cholesterol",
-      "minitool2_speedtrap",
-      "minitool3",
-    ];
+    const validToolTypes = ["minitool1", "minitool2", "minitool3"];
     if (!validToolTypes.includes(req.params.toolType)) {
       return res.status(400).json({
         success: false,
-        error:
-          "Invalid toolType. Must be minitool1, minitool2_cholesterol, minitool2_speedtrap, or minitool3",
+        error: "Invalid toolType. Must be minitool1, minitool2, or minitool3",
       });
     }
 
@@ -276,6 +273,9 @@ router.put("/:id", async (req, res) => {
         });
       }
       scenario.data = data;
+      // `data` is a Mixed-typed field, so Mongoose cannot detect deep mutations
+      // automatically. We mark it dirty explicitly to guarantee the write.
+      scenario.markModified("data");
     }
     if (minLifespan !== undefined) scenario.minLifespan = minLifespan;
     if (maxLifespan !== undefined) scenario.maxLifespan = maxLifespan;

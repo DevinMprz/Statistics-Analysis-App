@@ -27,6 +27,9 @@ mongoose
 const scenarioRoutes = require("./routes/scenarios");
 app.use("/api/scenarios", scenarioRoutes);
 
+const datasetRoutes = require("./routes/datasets");
+app.use("/api/datasets", datasetRoutes);
+
 // Health check endpoint
 app.get("/api/health", (req, res) => {
   res.json({ status: "Server is running" });

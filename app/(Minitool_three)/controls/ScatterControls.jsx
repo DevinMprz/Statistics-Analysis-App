@@ -14,6 +14,7 @@ import {
 import InfoModal from "../modals/InfoModal";
 
 const ScatterControls = ({
+  isMobile = false,
   showCross,
   onShowCrossChange,
   hideData,
@@ -65,7 +66,9 @@ const ScatterControls = ({
     const buttonRef = useRef(null);
 
     const selectedLabel = options?.find((o) => o.value === value)?.label;
-    const headerLabel = selectedLabel ? `${label}: ${selectedLabel}` : `${label}: Off`;
+    const headerLabel = selectedLabel
+      ? `${label}: ${selectedLabel}`
+      : `${label}: Off`;
 
     const toggleDropdown = () => {
       if (!expanded) {
@@ -141,15 +144,14 @@ const ScatterControls = ({
   };
 
   return (
-    <ScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={styles.scrollContent}
-      // This prop ensures the dropdown doesn't get cut off by the scroll container
-      nestedScrollEnabled={true}
-    >
-      <View style={styles.mainContainer}>
+    <View style={styles.scrollContent}>
+      <View
+        style={[styles.mainContainer, isMobile && styles.mainContainerMobile]}
+      >
         {/* Left Column: Switches */}
-        <View style={styles.switchColumn}>
+        <View
+          style={[styles.switchColumn, isMobile && styles.switchColumnMobile]}
+        >
           <View style={styles.switchGroup}>
             <Text style={styles.label}>Show Cross</Text>
             <Switch value={showCross} onValueChange={onShowCrossChange} />
@@ -162,7 +164,12 @@ const ScatterControls = ({
         </View>
 
         {/* Right Column: Dropdowns */}
-        <View style={styles.dropdownColumn}>
+        <View
+          style={[
+            styles.dropdownColumn,
+            isMobile && styles.dropdownColumnMobile,
+          ]}
+        >
           <DropdownItem
             label="Two Groups"
             infoTitle="Two Equal Groups"
@@ -197,7 +204,7 @@ const ScatterControls = ({
           onClose={() => setModalVisible(false)}
         />
       </View>
-    </ScrollView>
+    </View>
   );
 };
 const styles = StyleSheet.create({
@@ -213,13 +220,32 @@ const styles = StyleSheet.create({
     zIndex: 1,
     overflow: "visible",
   },
-  /* --- Left Column --- */
+  mainContainerMobile: {
+    minHeight: 400,
+    flexDirection: "column",
+    alignItems: "stretch",
+    padding: 10,
+  },
+  /* --- Left Column (desktop) / Switches row (mobile) --- */
   switchColumn: {
-    flex: 1, // Takes 40-50% of space
+    flex: 1,
     justifyContent: "space-around",
     borderRightWidth: 1,
     borderRightColor: "#eee",
     paddingRight: 10,
+  },
+  switchColumnMobile: {
+    width: "100%",
+    flex: undefined,
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    borderRightWidth: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+    paddingRight: 0,
+    paddingBottom: 10,
+    marginBottom: 12,
   },
   switchGroup: {
     alignItems: "center",
@@ -231,12 +257,18 @@ const styles = StyleSheet.create({
     marginBottom: 5,
     fontWeight: "600",
   },
-  /* --- Right Column --- */
+  /* --- Right Column (desktop) / Dropdowns column (mobile) --- */
   dropdownColumn: {
-    flex: 1.5, // Takes more space for the menus
+    flex: 1.5,
     paddingLeft: 15,
     justifyContent: "space-around",
     overflow: "visible",
+  },
+  dropdownColumnMobile: {
+    width: "100%",
+    //flex: undefined,
+    flexDirection: "column",
+    paddingLeft: 0,
   },
   dropdownRow: {
     flexDirection: "row",

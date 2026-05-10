@@ -30,6 +30,9 @@
     "experiments": {
       "baseUrl": "/Statistics-Analysis-App"
     },
-    "plugins": ["expo-router"]
+    "plugins": ["expo-router"],
+    "extra": {
+      "apiUrl": "http://localhost:5000"
+    }
   }
 }

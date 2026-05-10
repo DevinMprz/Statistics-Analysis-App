@@ -1,21 +1,15 @@
 import React, { useState, useCallback, useMemo, useRef } from "react";
-import { View, Dimensions } from "react-native";
-import Svg, {
-  Circle,
-  Line,
-  Text as SvgText,
-  G,
-  Rect,
-} from "react-native-svg";
-import {
-  GestureDetector,
-  Gesture,
-} from "react-native-gesture-handler";
+import { View } from "react-native";
+import Svg, { Circle, Line, Text as SvgText, G, Rect } from "react-native-svg";
+import { GestureDetector, Gesture } from "react-native-gesture-handler";
 import { scaleLinear } from "d3-scale";
 import useStatistics from "./useStatistics";
+import useDimensions from "../../hooks/useDimensions";
 
 const ScatterPlot = ({
   data = [],
+  width: widthProp,
+  height: heightProp,
   showCross = false,
   hideData = false,
   activeGrid = null,
@@ -25,14 +19,21 @@ const ScatterPlot = ({
   onPointSelect,
   onScrollEnabled,
 }) => {
-  const { width } = Dimensions.get("window");
+  const { width: windowWidth } = useDimensions();
+  const containerWidth = widthProp ?? windowWidth;
 
-  // ── Chart geometry constants ──────────────────────────────────
-  const CHART_WIDTH = width - 160;
-  const CHART_HEIGHT = 500;
-  const PADDING = 40;
-  const Y_AXIS_WIDTH = 50;
-  const X_AXIS_HEIGHT = 40;
+  // ── Chart geometry constants ──────────────────────────────
+  const isCompact = containerWidth < 600;
+  const CHART_WIDTH = Math.max(280, containerWidth - (isCompact ? 20 : 40));
+  const CHART_HEIGHT = heightProp ?? (isCompact ? 320 : 500);
+  const PADDING = isCompact ? 24 : 40;
+  // Reserve extra space on the left for the rotated "Y Variable" label
+  // and along the bottom for the "X Variable" label so they never overlap
+  // the tick numbers.
+  const Y_AXIS_LABEL_WIDTH = isCompact ? 18 : 22;
+  const X_AXIS_LABEL_HEIGHT = isCompact ? 18 : 22;
+  const Y_AXIS_WIDTH = (isCompact ? 40 : 50) + Y_AXIS_LABEL_WIDTH;
+  const X_AXIS_HEIGHT = (isCompact ? 32 : 40) + X_AXIS_LABEL_HEIGHT;
   const PLOT_LEFT = Y_AXIS_WIDTH + PADDING;
   const PLOT_RIGHT = CHART_WIDTH - PADDING;
   const PLOT_TOP = PADDING;
@@ -52,16 +53,24 @@ const ScatterPlot = ({
       const _xDomain = [_minX - xPad, _maxX + xPad];
       const _yDomain = [_minY - yPad, _maxY + yPad];
 
-      const _xScale = scaleLinear().domain(_xDomain).range([PLOT_LEFT, PLOT_RIGHT]);
-      const _yScale = scaleLinear().domain(_yDomain).range([PLOT_BOTTOM, PLOT_TOP]);
+      const _xScale = scaleLinear()
+        .domain(_xDomain)
+        .range([PLOT_LEFT, PLOT_RIGHT]);
+      const _yScale = scaleLinear()
+        .domain(_yDomain)
+        .range([PLOT_BOTTOM, PLOT_TOP]);
 
       const xTicks = 6;
       const yTicks = 6;
-      const _xTickValues = Array.from({ length: xTicks }, (_, i) =>
-        _xDomain[0] + (i * (_xDomain[1] - _xDomain[0])) / (xTicks - 1),
+      const _xTickValues = Array.from(
+        { length: xTicks },
+        (_, i) =>
+          _xDomain[0] + (i * (_xDomain[1] - _xDomain[0])) / (xTicks - 1),
       );
-      const _yTickValues = Array.from({ length: yTicks }, (_, i) =>
-        _yDomain[0] + (i * (_yDomain[1] - _yDomain[0])) / (yTicks - 1),
+      const _yTickValues = Array.from(
+        { length: yTicks },
+        (_, i) =>
+          _yDomain[0] + (i * (_yDomain[1] - _yDomain[0])) / (yTicks - 1),
       );
 
       return {
@@ -97,9 +106,11 @@ const ScatterPlot = ({
     })
     .onUpdate((e) => {
       const dataX =
-        crossStartRef.current.x + e.translationX / ((PLOT_RIGHT - PLOT_LEFT) / (xDomain[1] - xDomain[0]));
+        crossStartRef.current.x +
+        e.translationX / ((PLOT_RIGHT - PLOT_LEFT) / (xDomain[1] - xDomain[0]));
       const dataY =
-        crossStartRef.current.y - e.translationY / ((PLOT_BOTTOM - PLOT_TOP) / (yDomain[1] - yDomain[0]));
+        crossStartRef.current.y -
+        e.translationY / ((PLOT_BOTTOM - PLOT_TOP) / (yDomain[1] - yDomain[0]));
       // Clamp within domain
       const cx = Math.max(xDomain[0], Math.min(xDomain[1], dataX));
       const cy = Math.max(yDomain[0], Math.min(yDomain[1], dataY));
@@ -187,18 +198,68 @@ const ScatterPlot = ({
     return (
       <G>
         {/* Vertical line */}
-        <Line x1={cx} y1={PLOT_TOP} x2={cx} y2={PLOT_BOTTOM} stroke="#dc2626" strokeWidth="2" strokeDasharray="6,3" />
+        <Line
+          x1={cx}
+          y1={PLOT_TOP}
+          x2={cx}
+          y2={PLOT_BOTTOM}
+          stroke="#dc2626"
+          strokeWidth="2"
+          strokeDasharray="6,3"
+        />
         {/* Horizontal line */}
-        <Line x1={PLOT_LEFT} y1={cy} x2={PLOT_RIGHT} y2={cy} stroke="#dc2626" strokeWidth="2" strokeDasharray="6,3" />
+        <Line
+          x1={PLOT_LEFT}
+          y1={cy}
+          x2={PLOT_RIGHT}
+          y2={cy}
+          stroke="#dc2626"
+          strokeWidth="2"
+          strokeDasharray="6,3"
+        />
         {/* Center handle */}
         <Circle cx={cx} cy={cy} r="8" fill="#dc2626" opacity="0.8" />
         <Circle cx={cx} cy={cy} r="3" fill="#fff" />
 
         {/* Quadrant counts: TL, TR, BL, BR */}
-        <SvgText x={PLOT_LEFT + 10} y={PLOT_TOP + 18} fontSize="14" fontWeight="bold" fill="#dc2626">{counts[0]}</SvgText>
-        <SvgText x={PLOT_RIGHT - 10} y={PLOT_TOP + 18} fontSize="14" fontWeight="bold" fill="#dc2626" textAnchor="end">{counts[1]}</SvgText>
-        <SvgText x={PLOT_LEFT + 10} y={PLOT_BOTTOM - 8} fontSize="14" fontWeight="bold" fill="#dc2626">{counts[2]}</SvgText>
-        <SvgText x={PLOT_RIGHT - 10} y={PLOT_BOTTOM - 8} fontSize="14" fontWeight="bold" fill="#dc2626" textAnchor="end">{counts[3]}</SvgText>
+        <SvgText
+          x={PLOT_LEFT + 10}
+          y={PLOT_TOP + 18}
+          fontSize="14"
+          fontWeight="bold"
+          fill="#dc2626"
+        >
+          {counts[0]}
+        </SvgText>
+        <SvgText
+          x={PLOT_RIGHT - 10}
+          y={PLOT_TOP + 18}
+          fontSize="14"
+          fontWeight="bold"
+          fill="#dc2626"
+          textAnchor="end"
+        >
+          {counts[1]}
+        </SvgText>
+        <SvgText
+          x={PLOT_LEFT + 10}
+          y={PLOT_BOTTOM - 8}
+          fontSize="14"
+          fontWeight="bold"
+          fill="#dc2626"
+        >
+          {counts[2]}
+        </SvgText>
+        <SvgText
+          x={PLOT_RIGHT - 10}
+          y={PLOT_BOTTOM - 8}
+          fontSize="14"
+          fontWeight="bold"
+          fill="#dc2626"
+          textAnchor="end"
+        >
+          {counts[3]}
+        </SvgText>
       </G>
     );
   };
@@ -248,15 +309,51 @@ const ScatterPlot = ({
           return (
             <G key={`two-stats-${i}`}>
               {/* Median line */}
-              <Line x1={x1 + 4} y1={medY} x2={x2 - 4} y2={medY} stroke="#7c3aed" strokeWidth="2.5" />
+              <Line
+                x1={x1 + 4}
+                y1={medY}
+                x2={x2 - 4}
+                y2={medY}
+                stroke="#7c3aed"
+                strokeWidth="2.5"
+              />
               {/* Low line */}
-              <Line x1={x1 + 4} y1={lowY} x2={x2 - 4} y2={lowY} stroke="#7c3aed" strokeWidth="1.5" />
+              <Line
+                x1={x1 + 4}
+                y1={lowY}
+                x2={x2 - 4}
+                y2={lowY}
+                stroke="#7c3aed"
+                strokeWidth="1.5"
+              />
               {/* High line */}
-              <Line x1={x1 + 4} y1={highY} x2={x2 - 4} y2={highY} stroke="#7c3aed" strokeWidth="1.5" />
+              <Line
+                x1={x1 + 4}
+                y1={highY}
+                x2={x2 - 4}
+                y2={highY}
+                stroke="#7c3aed"
+                strokeWidth="1.5"
+              />
               {/* Vertical whisker connecting low → high */}
-              <Line x1={xMid} y1={lowY} x2={xMid} y2={highY} stroke="#7c3aed" strokeWidth="1" strokeDasharray="3,2" />
+              <Line
+                x1={xMid}
+                y1={lowY}
+                x2={xMid}
+                y2={highY}
+                stroke="#7c3aed"
+                strokeWidth="1"
+                strokeDasharray="3,2"
+              />
               {/* Labels */}
-              <SvgText x={xMid} y={medY - 5} fontSize="9" textAnchor="middle" fill="#7c3aed" fontWeight="bold">
+              <SvgText
+                x={xMid}
+                y={medY - 5}
+                fontSize="9"
+                textAnchor="middle"
+                fill="#7c3aed"
+                fontWeight="bold"
+              >
                 Med {Math.round(s.median)}
               </SvgText>
             </G>
@@ -306,13 +403,41 @@ const ScatterPlot = ({
           return (
             <G key={`four-stats-${i}`}>
               {/* Whisker: low → Q1 */}
-              <Line x1={xMid} y1={lowY} x2={xMid} y2={q1Y} stroke="#0891b2" strokeWidth="1" />
+              <Line
+                x1={xMid}
+                y1={lowY}
+                x2={xMid}
+                y2={q1Y}
+                stroke="#0891b2"
+                strokeWidth="1"
+              />
               {/* Whisker: Q3 → high */}
-              <Line x1={xMid} y1={q3Y} x2={xMid} y2={highY} stroke="#0891b2" strokeWidth="1" />
+              <Line
+                x1={xMid}
+                y1={q3Y}
+                x2={xMid}
+                y2={highY}
+                stroke="#0891b2"
+                strokeWidth="1"
+              />
               {/* Low cap */}
-              <Line x1={bx1 + boxInset} y1={lowY} x2={bx2 - boxInset} y2={lowY} stroke="#0891b2" strokeWidth="1.5" />
+              <Line
+                x1={bx1 + boxInset}
+                y1={lowY}
+                x2={bx2 - boxInset}
+                y2={lowY}
+                stroke="#0891b2"
+                strokeWidth="1.5"
+              />
               {/* High cap */}
-              <Line x1={bx1 + boxInset} y1={highY} x2={bx2 - boxInset} y2={highY} stroke="#0891b2" strokeWidth="1.5" />
+              <Line
+                x1={bx1 + boxInset}
+                y1={highY}
+                x2={bx2 - boxInset}
+                y2={highY}
+                stroke="#0891b2"
+                strokeWidth="1.5"
+              />
               {/* Box Q1 → Q3 */}
               <Rect
                 x={bx1}
@@ -324,7 +449,14 @@ const ScatterPlot = ({
                 strokeWidth="1.5"
               />
               {/* Median line inside box */}
-              <Line x1={bx1} y1={medY} x2={bx2} y2={medY} stroke="#0891b2" strokeWidth="2.5" />
+              <Line
+                x1={bx1}
+                y1={medY}
+                x2={bx2}
+                y2={medY}
+                stroke="#0891b2"
+                strokeWidth="2.5"
+              />
             </G>
           );
         })}
@@ -342,21 +474,72 @@ const ScatterPlot = ({
     return (
       <G>
         {/* Vertical projection to X-axis */}
-        <Line x1={cx} y1={cy} x2={cx} y2={PLOT_BOTTOM} stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="4,3" />
+        <Line
+          x1={cx}
+          y1={cy}
+          x2={cx}
+          y2={PLOT_BOTTOM}
+          stroke="#f59e0b"
+          strokeWidth="1.5"
+          strokeDasharray="4,3"
+        />
         {/* Horizontal projection to Y-axis */}
-        <Line x1={cx} y1={cy} x2={PLOT_LEFT} y2={cy} stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="4,3" />
+        <Line
+          x1={cx}
+          y1={cy}
+          x2={PLOT_LEFT}
+          y2={cy}
+          stroke="#f59e0b"
+          strokeWidth="1.5"
+          strokeDasharray="4,3"
+        />
         {/* X-axis value highlight */}
-        <Rect x={cx - 20} y={PLOT_BOTTOM + 2} width="40" height="18" rx="3" fill="#f59e0b" />
-        <SvgText x={cx} y={PLOT_BOTTOM + 15} fontSize="10" fontWeight="bold" textAnchor="middle" fill="#fff">
+        <Rect
+          x={cx - 20}
+          y={PLOT_BOTTOM + 2}
+          width="40"
+          height="18"
+          rx="3"
+          fill="#f59e0b"
+        />
+        <SvgText
+          x={cx}
+          y={PLOT_BOTTOM + 15}
+          fontSize="10"
+          fontWeight="bold"
+          textAnchor="middle"
+          fill="#fff"
+        >
           {Math.round(pt.x * 10) / 10}
         </SvgText>
         {/* Y-axis value highlight */}
-        <Rect x={PLOT_LEFT - 50} y={cy - 9} width="46" height="18" rx="3" fill="#f59e0b" />
-        <SvgText x={PLOT_LEFT - 27} y={cy + 4} fontSize="10" fontWeight="bold" textAnchor="middle" fill="#fff">
+        <Rect
+          x={PLOT_LEFT - 50}
+          y={cy - 9}
+          width="46"
+          height="18"
+          rx="3"
+          fill="#f59e0b"
+        />
+        <SvgText
+          x={PLOT_LEFT - 27}
+          y={cy + 4}
+          fontSize="10"
+          fontWeight="bold"
+          textAnchor="middle"
+          fill="#fff"
+        >
           {Math.round(pt.y * 10) / 10}
         </SvgText>
         {/* Highlight ring */}
-        <Circle cx={cx} cy={cy} r="7" fill="none" stroke="#f59e0b" strokeWidth="2.5" />
+        <Circle
+          cx={cx}
+          cy={cy}
+          r="7"
+          fill="none"
+          stroke="#f59e0b"
+          strokeWidth="2.5"
+        />
       </G>
     );
   };
@@ -369,8 +552,21 @@ const ScatterPlot = ({
         const y = yScale(tickValue);
         return (
           <G key={`y-tick-${i}`}>
-            <Line x1={Y_AXIS_WIDTH} y1={y} x2={CHART_WIDTH} y2={y} stroke="#e0e0e0" strokeWidth="1" />
-            <SvgText x={Y_AXIS_WIDTH - 10} y={y + 4} fontSize="11" textAnchor="end" fill="#666">
+            <Line
+              x1={Y_AXIS_WIDTH}
+              y1={y}
+              x2={CHART_WIDTH}
+              y2={y}
+              stroke="#e0e0e0"
+              strokeWidth="1"
+            />
+            <SvgText
+              x={Y_AXIS_WIDTH - 10}
+              y={y + 4}
+              fontSize="11"
+              textAnchor="end"
+              fill="#666"
+            >
               {Math.round(tickValue)}
             </SvgText>
           </G>
@@ -382,8 +578,21 @@ const ScatterPlot = ({
         const x = xScale(tickValue);
         return (
           <G key={`x-tick-${i}`}>
-            <Line x1={x} y1={PADDING} x2={x} y2={CHART_HEIGHT - X_AXIS_HEIGHT} stroke="#e0e0e0" strokeWidth="1" />
-            <SvgText x={x} y={CHART_HEIGHT - X_AXIS_HEIGHT + 20} fontSize="11" textAnchor="middle" fill="#666">
+            <Line
+              x1={x}
+              y1={PADDING}
+              x2={x}
+              y2={CHART_HEIGHT - X_AXIS_HEIGHT}
+              stroke="#e0e0e0"
+              strokeWidth="1"
+            />
+            <SvgText
+              x={x}
+              y={CHART_HEIGHT - X_AXIS_HEIGHT + 20}
+              fontSize="11"
+              textAnchor="middle"
+              fill="#666"
+            >
               {Math.round(tickValue)}
             </SvgText>
           </G>
@@ -391,8 +600,22 @@ const ScatterPlot = ({
       })}
 
       {/* Axes */}
-      <Line x1={Y_AXIS_WIDTH} y1={PADDING} x2={Y_AXIS_WIDTH} y2={CHART_HEIGHT - X_AXIS_HEIGHT} stroke="#333" strokeWidth="2" />
-      <Line x1={Y_AXIS_WIDTH} y1={CHART_HEIGHT - X_AXIS_HEIGHT} x2={CHART_WIDTH} y2={CHART_HEIGHT - X_AXIS_HEIGHT} stroke="#333" strokeWidth="2" />
+      <Line
+        x1={Y_AXIS_WIDTH}
+        y1={PADDING}
+        x2={Y_AXIS_WIDTH}
+        y2={CHART_HEIGHT - X_AXIS_HEIGHT}
+        stroke="#333"
+        strokeWidth="2"
+      />
+      <Line
+        x1={Y_AXIS_WIDTH}
+        y1={CHART_HEIGHT - X_AXIS_HEIGHT}
+        x2={CHART_WIDTH}
+        y2={CHART_HEIGHT - X_AXIS_HEIGHT}
+        stroke="#333"
+        strokeWidth="2"
+      />
 
       {/* Overlays (behind dots so taps register) */}
       {renderGridOverlay()}
@@ -421,10 +644,23 @@ const ScatterPlot = ({
       {renderSelectedPointOverlay()}
 
       {/* Axis labels */}
-      <SvgText x={15} y={CHART_HEIGHT / 2} fontSize="13" textAnchor="middle" fill="#333" transform={`rotate(-90 15 ${CHART_HEIGHT / 2})`}>
+      <SvgText
+        x={12}
+        y={(PLOT_TOP + PLOT_BOTTOM) / 2}
+        fontSize="13"
+        textAnchor="middle"
+        fill="#333"
+        transform={`rotate(-90 12 ${(PLOT_TOP + PLOT_BOTTOM) / 2})`}
+      >
         Y Variable
       </SvgText>
-      <SvgText x={CHART_WIDTH / 2} y={CHART_HEIGHT - 5} fontSize="13" textAnchor="middle" fill="#333">
+      <SvgText
+        x={(PLOT_LEFT + PLOT_RIGHT) / 2}
+        y={CHART_HEIGHT - 6}
+        fontSize="13"
+        textAnchor="middle"
+        fill="#333"
+      >
         X Variable
       </SvgText>
     </Svg>
@@ -433,7 +669,14 @@ const ScatterPlot = ({
   // Wrap in GestureDetector only when cross is active (for dragging)
   if (showCross) {
     return (
-      <View style={{ backgroundColor: "#fff", justifyContent: "center", alignItems: "center", marginVertical: 10 }}>
+      <View
+        style={{
+          backgroundColor: "#fff",
+          justifyContent: "center",
+          alignItems: "center",
+          marginVertical: 10,
+        }}
+      >
         <GestureDetector gesture={panGesture}>
           <View>{svgContent}</View>
         </GestureDetector>
@@ -442,7 +685,14 @@ const ScatterPlot = ({
   }
 
   return (
-    <View style={{ backgroundColor: "#fff", justifyContent: "center", alignItems: "center", marginVertical: 10 }}>
+    <View
+      style={{
+        backgroundColor: "#fff",
+        justifyContent: "center",
+        alignItems: "center",
+        marginVertical: 10,
+      }}
+    >
       {svgContent}
     </View>
   );

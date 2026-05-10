@@ -13,8 +13,8 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18' 
-          cache: 'npm' 
+          node-version: "22"
+          cache: "npm"
 
       - name: Install dependencies
         run: npm install
@@ -23,7 +23,7 @@ jobs:
         run: npm test -- --ci --json --outputFile=test-results.json
 
       - name: Upload test results
-        if: always() 
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-results

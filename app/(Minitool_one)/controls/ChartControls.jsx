@@ -6,7 +6,11 @@ import { View, Text, Switch, Button, StyleSheet } from "react-native";
  * Encapsulates all chart control logic including sorting, filtering, and tool toggles
  * Returns state setters and a renderControls() function for rendering
  */
-const useChartControls = () => {
+const useChartControls = (screenWidth = 800) => {
+  // Determine device type based on width
+  const isMobile = screenWidth < 480;
+  const isTablet = screenWidth >= 480 && screenWidth < 850;
+  const isDesktop = screenWidth >= 850;
   // --- Control state ---
   const [isSortedBySize, setIsSortedBySize] = useState(false);
   const [isSortedByColor, setIsSortedByColor] = useState(false);
@@ -56,35 +60,78 @@ const useChartControls = () => {
   // --- Render component with all controls ---
   const renderControls = useCallback(
     () => (
-      <View style={styles.controlsContainer}>
-        {/* --- Tool toggles --- */}
-        <View style={styles.switchControl}>
-          <Text>Value tool</Text>
-          <Switch value={valueToolActive} onValueChange={handleValueTool} />
-          <Text>Range tool</Text>
-          <Switch value={rangeToolActive} onValueChange={handleRangeTool} />
+      <View
+        style={[
+          styles.controlsContainer,
+          isDesktop && styles.controlsContainerDesktop,
+        ]}
+      >
+        {/* Group 1: Tool toggles (Value & Range tools) */}
+        <View
+          style={[
+            styles.switchControlRow,
+            isDesktop && styles.switchControlColumn,
+          ]}
+        >
+          <View style={styles.switchItem}>
+            <Text style={styles.switchLabel}>Value Tool</Text>
+            <Switch value={valueToolActive} onValueChange={handleValueTool} />
+          </View>
+          <View style={styles.switchItem}>
+            <Text style={styles.switchLabel}>Range Tool</Text>
+            <Switch value={rangeToolActive} onValueChange={handleRangeTool} />
+          </View>
         </View>
 
-        {/* --- Visibility filters --- */}
-        <View style={styles.switchControl}>
-          <Text>Hide Green Bars</Text>
-          <Switch value={hideGreenBars} onValueChange={handleHideGreenBars} />
-          <Text>Hide Purple Bars</Text>
-          <Switch value={hidePurpleBars} onValueChange={handleHidePurpleBars} />
-          <Text>Show Dots Only</Text>
-          <Switch value={showDotsOnly} onValueChange={handleShowDotsOnly} />
+        {/* Group 2: Visibility filters (3 switches) */}
+        <View
+          style={[
+            styles.switchControlRow,
+            isDesktop && styles.switchControlColumn,
+            isDesktop && styles.groupSeparator,
+          ]}
+        >
+          <View style={styles.switchItem}>
+            <Text style={styles.switchLabel}>Hide Green</Text>
+            <Switch value={hideGreenBars} onValueChange={handleHideGreenBars} />
+          </View>
+          <View style={styles.switchItem}>
+            <Text style={styles.switchLabel}>Hide Purple</Text>
+            <Switch
+              value={hidePurpleBars}
+              onValueChange={handleHidePurpleBars}
+            />
+          </View>
+          <View style={styles.switchItem}>
+            <Text style={styles.switchLabel}>Dots Only</Text>
+            <Switch value={showDotsOnly} onValueChange={handleShowDotsOnly} />
+          </View>
         </View>
 
-        {/* --- Sorting controllers --- */}
-        <View style={styles.switchControl}>
-          <Button
-            title="Sort by Color"
-            onPress={() => handleSortByColor(!isSortedByColor)}
-          />
-          <Button
-            title="Sort by Size"
-            onPress={() => handleSortBySize(!isSortedBySize)}
-          />
+        {/* Group 3: Sorting buttons */}
+        <View
+          style={[
+            styles.buttonControlRow,
+            isDesktop && styles.buttonControlColumn,
+            isDesktop && styles.groupSeparator,
+          ]}
+        >
+          <View
+            style={[styles.buttonItem, isDesktop && styles.buttonItemDesktop]}
+          >
+            <Button
+              title="Sort by Color"
+              onPress={() => handleSortByColor(!isSortedByColor)}
+            />
+          </View>
+          <View
+            style={[styles.buttonItem, isDesktop && styles.buttonItemDesktop]}
+          >
+            <Button
+              title="Sort by Size"
+              onPress={() => handleSortBySize(!isSortedBySize)}
+            />
+          </View>
         </View>
       </View>
     ),
@@ -96,7 +143,8 @@ const useChartControls = () => {
       showDotsOnly,
       isSortedByColor,
       isSortedBySize,
-    ]
+      isDesktop,
+    ],
   );
 
   return {
@@ -134,8 +182,7 @@ const useChartControls = () => {
 
 const styles = StyleSheet.create({
   controlsContainer: {
-    flexDirection: "row",
-    justifyContent: "space-around",
+    flexDirection: "column",
     width: "100%",
     marginBottom: 10,
     paddingVertical: 10,
@@ -143,9 +190,76 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderColor: "#e0e0e0",
   },
-  switchControl: {
+  switchControlRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    gap: 8,
+  },
+  switchItem: {
+    flex: 1,
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  switchLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 6,
+    color: "#333",
+    textAlign: "center",
+  },
+  buttonControlRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    gap: 8,
+    borderTopWidth: 1,
+    borderColor: "#e0e0e0",
+  },
+  buttonItem: {
+    flex: 1,
+    minHeight: 44,
+    maxWidth: 150,
+  },
+  // --- Desktop Styles ---
+  controlsContainerDesktop: {
+    flexDirection: "row",
+    justifyContent: "flex-start",
+    paddingHorizontal: 20,
+    gap: 30,
+  },
+  switchControlColumn: {
     flexDirection: "column",
     justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 0,
+    flex: 1,
+  },
+  buttonControlColumn: {
+    flexDirection: "column",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 0,
+    flex: 1,
+    borderTopWidth: 0,
+  },
+  groupSeparator: {
+    borderLeftWidth: 1,
+    borderLeftColor: "#e0e0e0",
+    paddingLeft: 20,
+    marginLeft: 20,
+  },
+  buttonItemDesktop: {
+    width: "100%",
+    minHeight: 40,
   },
 });
 

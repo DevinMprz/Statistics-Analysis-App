@@ -101,7 +101,7 @@ const Minitool_1 = () => {
     let data = [...currentBatteryData];
 
     if (chartControls.isSortedBySize) {
-      data.sort((a, b) => a.lifespan - b.lifespan);
+      data.sort((a, b) => b.lifespan - a.lifespan);
     } else if (chartControls.isSortedByColor) {
       data.sort((a, b) => a.brand.localeCompare(b.brand));
     }
@@ -583,7 +583,11 @@ const Minitool_1 = () => {
               onPress={() => setIsUploadModalVisible(true)}
               colorScheme="primary"
               containerStyles={
-                isMobile ? styles.topButtonMobile : styles.topButton
+                isMobile
+                  ? styles.topButtonMobile
+                  : isTablet
+                    ? styles.topButtonTablet
+                    : styles.topButton
               }
             />
             <UniverseButton
@@ -591,7 +595,11 @@ const Minitool_1 = () => {
               onPress={handleAddBarButtonPress}
               colorScheme="primary"
               containerStyles={
-                isMobile ? styles.topButtonMobile : styles.topButton
+                isMobile
+                  ? styles.topButtonMobile
+                  : isTablet
+                    ? styles.topButtonTablet
+                    : styles.topButton
               }
             />
             <UniverseButton
@@ -603,7 +611,11 @@ const Minitool_1 = () => {
               }}
               colorScheme="primary"
               containerStyles={
-                isMobile ? styles.topButtonMobile : styles.topButton
+                isMobile
+                  ? styles.topButtonMobile
+                  : isTablet
+                    ? styles.topButtonTablet
+                    : styles.topButton
               }
             />
           </View>
@@ -1157,6 +1169,12 @@ const styles = StyleSheet.create({
     minHeight: 30,
     paddingHorizontal: 15,
   },
+  topButtonTablet: {
+    minWidth: 100,
+    flex: 1,
+    minHeight: 36,
+    paddingHorizontal: 12,
+  },
   databaseButtonContainer: {
     flexDirection: "row",
     justifyContent: "center",
@@ -1195,7 +1213,7 @@ const styles = StyleSheet.create({
     marginLeft: 0,
     marginTop: 10,
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "space-around",
     gap: 10,
   },
   chartAndStatsMobile: {

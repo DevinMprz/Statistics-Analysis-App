@@ -352,13 +352,13 @@ const Minitool_1 = () => {
           minLifespan: barCount > 0 ? minLifespan : null,
           maxLifespan: barCount > 0 ? maxLifespan : null,
         },
-      });
+      };
+
+      const response = await axios.post(API_URL, payload);
 
       if (response.data.success) {
         alert("Success. Scenario saved successfully");
         setScenarios([...scenarios, response.data.data]);
-
-        // Reset UI state
 
         // Reset UI state
         setScenarioName("");

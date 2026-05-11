@@ -1,4 +1,5 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const Scenario = require("../models/Scenario");
 const {
   validateCanonical,
@@ -6,6 +7,14 @@ const {
 } = require("../utils/scenarioValidator");
 
 const router = express.Router();
+
+const MAX_NAME_LENGTH = 100;
+const MAX_DESCRIPTION_LENGTH = 500;
+
+/** Validate that a route param is a valid MongoDB ObjectId */
+function isValidObjectId(id) {
+  return mongoose.Types.ObjectId.isValid(id);
+}
 
 /**
  * GET /api/scenarios
@@ -62,6 +71,11 @@ router.get("/tool/:toolType", async (req, res) => {
  */
 router.get("/:id", async (req, res) => {
   try {
+    if (!isValidObjectId(req.params.id)) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Invalid scenario ID" });
+    }
     const scenario = await Scenario.findById(req.params.id);
     if (!scenario) {
       return res.status(404).json({
@@ -76,7 +90,7 @@ router.get("/:id", async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: "Failed to retrieve scenario",
     });
   }
 });
@@ -99,6 +113,20 @@ router.post("/", async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Scenario name is required",
+      });
+    }
+
+    if (name.trim().length > MAX_NAME_LENGTH) {
+      return res.status(400).json({
+        success: false,
+        error: `Scenario name must be ${MAX_NAME_LENGTH} characters or less`,
+      });
+    }
+
+    if (description && description.length > MAX_DESCRIPTION_LENGTH) {
+      return res.status(400).json({
+        success: false,
+        error: `Description must be ${MAX_DESCRIPTION_LENGTH} characters or less`,
       });
     }
 
@@ -143,7 +171,7 @@ router.post("/", async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: "Failed to create scenario",
     });
   }
 });
@@ -155,6 +183,12 @@ router.post("/", async (req, res) => {
  */
 router.put("/:id", async (req, res) => {
   try {
+    if (!isValidObjectId(req.params.id)) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Invalid scenario ID" });
+    }
+
     const { name, description, data } = req.body;
 
     const scenario = await Scenario.findById(req.params.id);
@@ -166,8 +200,24 @@ router.put("/:id", async (req, res) => {
     }
 
     // Update fields if provided
-    if (name) scenario.name = name.trim();
-    if (description !== undefined) scenario.description = description;
+    if (name) {
+      if (name.trim().length > MAX_NAME_LENGTH) {
+        return res.status(400).json({
+          success: false,
+          error: `Scenario name must be ${MAX_NAME_LENGTH} characters or less`,
+        });
+      }
+      scenario.name = name.trim();
+    }
+    if (description !== undefined) {
+      if (description.length > MAX_DESCRIPTION_LENGTH) {
+        return res.status(400).json({
+          success: false,
+          error: `Description must be ${MAX_DESCRIPTION_LENGTH} characters or less`,
+        });
+      }
+      scenario.description = description;
+    }
     if (data) {
       // Validate against the canonical schema for this tool type
       try {
@@ -191,7 +241,7 @@ router.put("/:id", async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: "Failed to update scenario",
     });
   }
 });
@@ -202,6 +252,11 @@ router.put("/:id", async (req, res) => {
  */
 router.delete("/:id", async (req, res) => {
   try {
+    if (!isValidObjectId(req.params.id)) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Invalid scenario ID" });
+    }
     const scenario = await Scenario.findByIdAndDelete(req.params.id);
     if (!scenario) {
       return res.status(404).json({
@@ -217,7 +272,7 @@ router.delete("/:id", async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: "Failed to delete scenario",
     });
   }
 });

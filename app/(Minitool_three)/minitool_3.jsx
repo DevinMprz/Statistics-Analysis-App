@@ -406,7 +406,10 @@ const styles = StyleSheet.create({
     right: 50,
     top: 16,
   },
-  uploadButtonWrapper: {},
+  uploadButtonWrapper: {
+    marginTop: 4,
+    marginBottom: 14,
+  },
   uploadButtonWrapperMobile: {
     width: "100%",
   },

@@ -59,8 +59,17 @@ const Minitool_3 = () => {
   const [activeGrid, setActiveGrid] = useState(null);
   const [twoGroupsCount, setTwoGroupsCount] = useState(null);
   const [fourGroupsCount, setFourGroupsCount] = useState(null);
-  const [selectedPoint, setSelectedPoint] = useState(null);
+  const [selectedPoints, setSelectedPoints] = useState([]);
   const [scrollEnabled, setScrollEnabled] = useState(true);
+
+  // Toggle index in/out of the multi-selection list.
+  const togglePointSelection = useCallback((index) => {
+    setSelectedPoints((prev) =>
+      prev.includes(index)
+        ? prev.filter((i) => i !== index)
+        : [...prev, index],
+    );
+  }, []);
 
   const handleActiveGridChange = (val) => {
     setActiveGrid(val);
@@ -120,7 +129,7 @@ const Minitool_3 = () => {
   const handleSelectScenario = useCallback(async (value) => {
     if (!value) return;
     setCurrentKey(value);
-    setSelectedPoint(null);
+    setSelectedPoints([]);
 
     if (value.startsWith("local:")) {
       const key = value.slice("local:".length);
@@ -257,8 +266,8 @@ const Minitool_3 = () => {
               activeGrid={activeGrid}
               twoGroupsCount={twoGroupsCount}
               fourGroupsCount={fourGroupsCount}
-              selectedPoint={selectedPoint}
-              onPointSelect={setSelectedPoint}
+              selectedPoints={selectedPoints}
+              onPointToggle={togglePointSelection}
               onScrollEnabled={setScrollEnabled}
             />
           </View>

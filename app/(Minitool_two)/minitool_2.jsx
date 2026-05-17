@@ -1,7 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Dimensions,
   FlatList,
   Modal,
   ScrollView,
@@ -18,15 +17,21 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import UploadScenarioModal from '../../components/UploadScenarioModal';
 import { calculateCombinedExtent } from '../../data/_data';
+import useDimensions from '../hooks/useDimensions';
 
 import DotPlot from './components/DotPlot';
 import LegendPanel from './components/LegendPanel';
+import GenerateDataModal from './components/GenerateDataModal';
 import { CHART_DEFAULTS, DEFAULT_PRESETS } from './config/scenarios';
+import { useDotPlotTools } from './hooks/useDotPlotTools';
 
-const screenWidth = Dimensions.get('window').width;
 const SMALL_SCREEN_THRESHOLD = 900;
 const TOOL_TYPE = 'minitool2';
 const API_URL = 'http://localhost:5000/api/scenarios';
+// Best-effort detection: axios marks network/CORS/server-down failures with
+// the ERR_NETWORK code. We surface a friendlier message in that case.
+const isConnectionError = (err) =>
+  err?.code === 'ERR_NETWORK' || err?.message === 'Network Error';
 
 /**
  * Builds a chart settings object from a saved scenario record.
@@ -85,9 +90,17 @@ const Minitool2Page = () => {
   const [scenarioName, setScenarioName] = useState('');
   const [isSavingScenario, setIsSavingScenario] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
 
-  // --- Database functions (preserved behaviour) --------------------------- //
-  const fetchScenarios = async () => {
+  // The DotPlot tools (lines, group mode, etc.) are lifted here so the
+  // page-level button bar can drive Clear-All-Lines alongside Save/Load,
+  // Upload and Generate, keeping all primary actions in one place.
+  const tools = useDotPlotTools({
+    initialIntervalWidth: CHART_DEFAULTS.initialIntervalWidth,
+  });
+
+  // --- Database functions ------------------------------------------------ //
+  const fetchScenarios = useCallback(async () => {
     setIsLoadingScenarios(true);
     try {
       const response = await axios.get(API_URL);
@@ -102,17 +115,27 @@ const Minitool2Page = () => {
           const adapted = adaptDbScenario(s);
           if (adapted) dbEntries[`db_${s._id}`] = adapted;
         });
-      setScenarios({ ...DEFAULT_PRESETS, ...dbEntries });
+      setScenarios((prev) => ({
+        ...DEFAULT_PRESETS,
+        // Preserve any locally-generated scenarios that aren't DB-backed.
+        ...Object.fromEntries(
+          Object.entries(prev).filter(([k]) => k.startsWith('generated_')),
+        ),
+        ...dbEntries,
+      }));
     } catch (error) {
       console.error('Error fetching scenarios:', error);
+      if (isConnectionError(error)) {
+        alert('Connection Error. Unable to connect to database. Make sure the backend server is running on port 5000.');
+      }
     } finally {
       setIsLoadingScenarios(false);
     }
-  };
+  }, []);
 
   const saveScenario = async () => {
     if (!scenarioName.trim()) {
-      alert('Please enter a scenario name');
+      alert('Please enter a scenario name.');
       return;
     }
     setIsSavingScenario(true);
@@ -133,11 +156,15 @@ const Minitool2Page = () => {
         setScenarioName('');
         fetchScenarios();
       } else {
-        alert('Failed to save scenario: ' + response.data.error);
+        alert('Failed to save scenario: ' + (response.data.error ?? 'Unknown error'));
       }
     } catch (error) {
       console.error('Error saving scenario:', error);
-      alert('Error saving scenario: ' + error.message);
+      if (isConnectionError(error)) {
+        alert('Connection Error. Unable to connect to database. Make sure the backend server is running on port 5000.');
+      } else {
+        alert('Error saving scenario: ' + error.message);
+      }
     } finally {
       setIsSavingScenario(false);
     }
@@ -147,7 +174,7 @@ const Minitool2Page = () => {
     try {
       const response = await axios.delete(`${API_URL}/${scenarioId}`);
       if (!response.data.success) {
-        alert('Failed to delete scenario: ' + response.data.error);
+        alert('Failed to delete scenario: ' + (response.data.error ?? 'Unknown error'));
         return;
       }
       const key = `db_${scenarioId}`;
@@ -160,18 +187,41 @@ const Minitool2Page = () => {
       alert('Scenario deleted successfully!');
     } catch (error) {
       console.error('Error deleting scenario:', error);
-      alert('Error deleting scenario: ' + error.message);
+      if (isConnectionError(error)) {
+        alert('Connection Error. Unable to connect to database. Make sure the backend server is running on port 5000.');
+      } else {
+        alert('Error deleting scenario: ' + error.message);
+      }
     }
   };
 
+  const handleGenerateDataset = useCallback(
+    ({ name, data }) => {
+      const settings = buildSettingsFromScenario(name, data.before, data.after);
+      const id = `generated_${Date.now()}`;
+      setScenarios((prev) => ({
+        ...prev,
+        [id]: { label: `\u2728 ${name}`, data, settings },
+      }));
+      setSelectedScenario(id);
+      tools.actions.clearAll();
+    },
+    [tools.actions],
+  );
+
   useEffect(() => {
     fetchScenarios();
-  }, []);
+  }, [fetchScenarios]);
 
   // --- Render ------------------------------------------------------------- //
+  const { width: screenWidth } = useDimensions();
   const active = scenarios[selectedScenario];
+  // Mobile uses essentially the full width; large screens cap the chart so
+  // the page composition still feels balanced.
   const chartWidth =
-    screenWidth < SMALL_SCREEN_THRESHOLD ? screenWidth * 0.9 : screenWidth * 0.6;
+    screenWidth < SMALL_SCREEN_THRESHOLD
+      ? screenWidth - 16
+      : Math.min(screenWidth * 0.6, 900);
 
   const chartSettings = useMemo(
     () =>
@@ -228,28 +278,42 @@ const Minitool2Page = () => {
 
             <View style={styles.chartContainer}>
               {active && chartSettings && (
-                <DotPlot data={active.data} settings={chartSettings} />
+                <DotPlot
+                  data={active.data}
+                  settings={chartSettings}
+                  tools={tools}
+                />
               )}
             </View>
 
-            <View style={styles.databaseButtonContainer}>
-              <TouchableOpacity
-                style={styles.databaseButton}
+            {/* Primary action bar — Clear All Lines and Upload are the most
+                emphasised actions per user feedback; Save/Load and Generate
+                are secondary. All four share the same height / typography. */}
+            <View style={styles.actionGrid}>
+              <ActionButton
+                label="Clear All Lines"
+                variant="primary"
+                disabled={!tools.hasAnyLines}
+                onPress={tools.actions.clearAll}
+              />
+              <ActionButton
+                label="Upload from File"
+                variant="primary"
+                onPress={() => setShowUploadModal(true)}
+              />
+              <ActionButton
+                label="Save / Load"
+                variant="secondary"
                 onPress={() => {
                   fetchScenarios();
                   setShowScenariosModal(true);
                 }}
-              >
-                <Text style={styles.databaseButtonText}>Save/Load Scenario</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.databaseButton, { backgroundColor: '#10b981' }]}
-                onPress={() => setShowUploadModal(true)}
-              >
-                <Text style={styles.databaseButtonText}>
-                  Upload Scenario from File
-                </Text>
-              </TouchableOpacity>
+              />
+              <ActionButton
+                label="Generate Dataset"
+                variant="secondary"
+                onPress={() => setShowGenerateModal(true)}
+              />
             </View>
           </View>
         </ScrollView>
@@ -348,8 +412,45 @@ const Minitool2Page = () => {
           toolType={TOOL_TYPE}
           onSuccess={() => fetchScenarios()}
         />
+
+        <GenerateDataModal
+          visible={showGenerateModal}
+          onClose={() => setShowGenerateModal(false)}
+          onGenerate={handleGenerateDataset}
+        />
       </SafeAreaView>
     </GestureHandlerRootView>
+  );
+};
+
+/**
+ * Shared button used by the primary action bar. Two variants keep the
+ * hierarchy clear (primary = filled accent, secondary = subdued).
+ */
+const ActionButton = ({ label, variant, disabled, onPress }) => {
+  const isPrimary = variant === 'primary';
+  return (
+    <TouchableOpacity
+      style={[
+        styles.actionButton,
+        isPrimary ? styles.actionButtonPrimary : styles.actionButtonSecondary,
+        disabled && styles.actionButtonDisabled,
+      ]}
+      onPress={onPress}
+      disabled={disabled}
+      activeOpacity={0.85}
+    >
+      <Text
+        style={[
+          styles.actionButtonText,
+          isPrimary
+            ? styles.actionButtonTextPrimary
+            : styles.actionButtonTextSecondary,
+        ]}
+      >
+        {label}
+      </Text>
+    </TouchableOpacity>
   );
 };
 
@@ -379,6 +480,30 @@ const styles = StyleSheet.create({
   pickerContainer: { width: '90%', marginBottom: 20, zIndex: 10 },
   pickerLabel: { fontSize: 16, fontWeight: 'bold', marginBottom: 5 },
   chartContainer: { flex: 1, width: '100%', alignItems: 'center' },
+  actionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    width: '94%',
+    marginTop: 16,
+    gap: 10,
+  },
+  actionButton: {
+    flexGrow: 1,
+    flexBasis: '46%',
+    minWidth: 140,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionButtonPrimary: { backgroundColor: '#2563eb' },
+  actionButtonSecondary: { backgroundColor: '#e5e7eb' },
+  actionButtonDisabled: { opacity: 0.45 },
+  actionButtonText: { fontSize: 14, fontWeight: '700' },
+  actionButtonTextPrimary: { color: '#ffffff' },
+  actionButtonTextSecondary: { color: '#1f2937' },
   databaseButtonContainer: {
     flexDirection: 'row',
     justifyContent: 'center',

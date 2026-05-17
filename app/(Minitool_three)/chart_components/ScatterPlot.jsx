@@ -412,34 +412,40 @@ const ScatterPlot = ({
           const cy = yScale(pt.y);
           return (
             <G key={`sel-${idx}`}>
-              {/* Vertical line: dot → X-axis (bottom) */}
+              {/* Vertical line: dot → X-axis. Extend to the actual axis
+                  line (CHART_HEIGHT - X_AXIS_HEIGHT), not just PLOT_BOTTOM
+                  which stops PADDING pixels short of the axis. */}
               <Line
                 x1={cx}
                 y1={cy}
                 x2={cx}
-                y2={PLOT_BOTTOM}
+                y2={CHART_HEIGHT - X_AXIS_HEIGHT}
                 stroke="#f59e0b"
                 strokeWidth="1"
                 strokeDasharray="3,3"
               />
-              {/* Horizontal line: dot → Y-axis (left) */}
+              {/* Horizontal line: dot → Y-axis. Extend to Y_AXIS_WIDTH, the
+                  actual axis x-coordinate, not PLOT_LEFT which is PADDING
+                  pixels to the right of the axis. */}
               <Line
                 x1={cx}
                 y1={cy}
-                x2={PLOT_LEFT}
+                x2={Y_AXIS_WIDTH}
                 y2={cy}
                 stroke="#f59e0b"
                 strokeWidth="1"
                 strokeDasharray="3,3"
               />
-              {/* Triangle on X-axis (points down) */}
+              {/* Triangle on X-axis: sits below the axis (outside the plot),
+                  tip pointing up and touching the axis — like a ▲ marker */}
               <Polygon
-                points={`${cx - TRIANGLE_SIZE},${PLOT_BOTTOM} ${cx + TRIANGLE_SIZE},${PLOT_BOTTOM} ${cx},${PLOT_BOTTOM + TRIANGLE_SIZE}`}
+                points={`${cx - TRIANGLE_SIZE},${CHART_HEIGHT - X_AXIS_HEIGHT + TRIANGLE_SIZE} ${cx + TRIANGLE_SIZE},${CHART_HEIGHT - X_AXIS_HEIGHT + TRIANGLE_SIZE} ${cx},${CHART_HEIGHT - X_AXIS_HEIGHT}`}
                 fill="#f59e0b"
               />
-              {/* Triangle on Y-axis (points left) */}
+              {/* Triangle on Y-axis: sits to the left of the axis (outside the
+                  plot), tip pointing right and touching the axis — ▶ marker */}
               <Polygon
-                points={`${PLOT_LEFT},${cy - TRIANGLE_SIZE} ${PLOT_LEFT},${cy + TRIANGLE_SIZE} ${PLOT_LEFT - TRIANGLE_SIZE},${cy}`}
+                points={`${Y_AXIS_WIDTH - TRIANGLE_SIZE},${cy - TRIANGLE_SIZE} ${Y_AXIS_WIDTH - TRIANGLE_SIZE},${cy + TRIANGLE_SIZE} ${Y_AXIS_WIDTH},${cy}`}
                 fill="#f59e0b"
               />
               {/* Visible selection ring */}

@@ -22,6 +22,7 @@ import useDimensions from '../hooks/useDimensions';
 import DotPlot from './components/DotPlot';
 import LegendPanel from './components/LegendPanel';
 import GenerateDataModal from './components/GenerateDataModal';
+import { pickerSelectStyles } from './components/styles';
 import { CHART_DEFAULTS, DEFAULT_PRESETS } from './config/scenarios';
 import { useDotPlotTools } from './hooks/useDotPlotTools';
 
@@ -124,7 +125,7 @@ const Minitool2Page = () => {
         ...dbEntries,
       }));
     } catch (error) {
-      console.error('Error fetching scenarios:', error);
+      console.warn('Error fetching scenarios:', error);
       if (isConnectionError(error)) {
         alert('Connection Error. Unable to connect to database. Make sure the backend server is running on port 5000.');
       }
@@ -159,7 +160,7 @@ const Minitool2Page = () => {
         alert('Failed to save scenario: ' + (response.data.error ?? 'Unknown error'));
       }
     } catch (error) {
-      console.error('Error saving scenario:', error);
+      console.warn('Error saving scenario:', error);
       if (isConnectionError(error)) {
         alert('Connection Error. Unable to connect to database. Make sure the backend server is running on port 5000.');
       } else {
@@ -186,7 +187,7 @@ const Minitool2Page = () => {
       });
       alert('Scenario deleted successfully!');
     } catch (error) {
-      console.error('Error deleting scenario:', error);
+      console.warn('Error deleting scenario:', error);
       if (isConnectionError(error)) {
         alert('Connection Error. Unable to connect to database. Make sure the backend server is running on port 5000.');
       } else {
@@ -273,6 +274,7 @@ const Minitool2Page = () => {
                 style={pickerSelectStyles}
                 value={selectedScenario}
                 placeholder={{}}
+                useNativeAndroidPickerStyle={false}
               />
             </View>
 
@@ -608,31 +610,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   closeButtonText: { color: 'white', fontWeight: 'bold', fontSize: 14 },
-});
-
-const pickerSelectStyles = StyleSheet.create({
-  inputIOS: {
-    fontSize: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    borderWidth: 1,
-    borderColor: 'gray',
-    borderRadius: 4,
-    color: 'black',
-    paddingRight: 30,
-    backgroundColor: 'white',
-  },
-  inputAndroid: {
-    fontSize: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderWidth: 0.5,
-    borderColor: 'purple',
-    borderRadius: 8,
-    color: 'black',
-    paddingRight: 30,
-    backgroundColor: 'white',
-  },
 });
 
 export default Minitool2Page;

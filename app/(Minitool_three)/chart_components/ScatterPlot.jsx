@@ -472,11 +472,13 @@ const ScatterPlot = ({
         justifyContent: "center",
         alignItems: "center",
         marginVertical: 10,
-        // `position: relative` is required so the absolutely-positioned
-        // cross-handle gesture overlay is anchored to this view.
-        position: "relative",
       }}
     >
+      {/* Inner wrapper is exactly the SVG size so `position: "absolute"`
+          on the cross-handle overlay uses the same coordinate origin as
+          the SVG — fixes the handle being offset to the left when the
+          outer View is wider than CHART_WIDTH and centers the SVG. */}
+      <View style={{ position: "relative", width: CHART_WIDTH, height: CHART_HEIGHT }}>
       <Svg width={CHART_WIDTH} height={CHART_HEIGHT}>
         {/* Background grid lines & Y-axis ticks */}
         {yTickValues.map((tickValue, i) => {
@@ -627,9 +629,9 @@ const ScatterPlot = ({
           />
         </GestureDetector>
       )}
+      </View>
     </View>
   );
 };
 
 export default ScatterPlot;
-  const { width: windowWidth } = useDimensions();

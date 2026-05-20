@@ -29,6 +29,9 @@ import { useDotPlotTools } from './hooks/useDotPlotTools';
 const SMALL_SCREEN_THRESHOLD = 900;
 const TOOL_TYPE = 'minitool2';
 const API_URL = 'http://localhost:5000/api/scenarios';
+// Maximum observations kept per sample (Before / After) across every data
+// entry path — generated, file-uploaded, or database-loaded.
+const MAX_POINTS_PER_SAMPLE = 300;
 // Best-effort detection: axios marks network/CORS/server-down failures with
 // the ERR_NETWORK code. We surface a friendlier message in that case.
 const isConnectionError = (err) =>
@@ -74,6 +77,9 @@ const adaptDbScenario = (s) => {
     return null;
   }
   if (!data.before.length && !data.after.length) return null;
+  // Enforce the per-sample cap regardless of where the data came from.
+  data.before = data.before.slice(0, MAX_POINTS_PER_SAMPLE);
+  data.after  = data.after.slice(0, MAX_POINTS_PER_SAMPLE);
   return {
     label: s.name,
     data,

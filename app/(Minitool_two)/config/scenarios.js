@@ -5,6 +5,8 @@
 
 import cholesterolData from '../../../data/cholesterol.json';
 import speedtrapData from '../../../data/speedtrap.json';
+import AIDSData from '../../../data/AIDS.json';
+import HeartRateData from '../../../data/HeartRate.json';
 import { calculateCombinedExtent } from '../../../data/_data';
 
 export const CHART_DEFAULTS = Object.freeze({
@@ -41,7 +43,7 @@ export const DEFAULT_PRESETS = {
     settings: buildScenarioSettings({
       name: 'Cholesterol',
       data: cholesterolData,
-      xAxisStep: 2,
+      xAxisStep: 10,
       initialIntervalWidth: 10,
     }),
   },
@@ -51,10 +53,31 @@ export const DEFAULT_PRESETS = {
     settings: buildScenarioSettings({
       name: 'Speed Trap',
       data: speedtrapData,
+      xAxisStep: 2,
+      initialIntervalWidth: 5,
+    }),
+  },
+  heartRate: {
+    label: 'Heart Rate',
+    data: HeartRateData,
+    settings: buildScenarioSettings({
+      name: 'Heart Rate',
+      data: HeartRateData,
       xAxisStep: 5,
       initialIntervalWidth: 5,
     }),
   },
+  AIDS: {
+    label: 'AIDS Cases',
+    data: AIDSData,
+    settings: buildScenarioSettings({
+      name: 'AIDS Cases',
+      data: AIDSData,
+      xAxisStep: 5,
+      initialIntervalWidth: 10,
+    }),
+
+  }
 };
 
 export default () => null;

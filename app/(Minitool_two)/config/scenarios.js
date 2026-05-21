@@ -66,17 +66,6 @@ export const DEFAULT_PRESETS = {
       initialIntervalWidth: 5,
     }),
   },
-  AIDS: {
-    label: 'AIDS Cases',
-    data: AIDSData,
-    settings: buildScenarioSettings({
-      name: 'AIDS Cases',
-      data: AIDSData,
-      xAxisStep: 5,
-      initialIntervalWidth: 10,
-    }),
-
-  }
 };
 
 export default () => null;

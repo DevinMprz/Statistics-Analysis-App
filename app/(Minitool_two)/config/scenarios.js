@@ -5,7 +5,6 @@
 
 import cholesterolData from '../../../data/cholesterol.json';
 import speedtrapData from '../../../data/speedtrap.json';
-import AIDSData from '../../../data/AIDS.json';
 import HeartRateData from '../../../data/HeartRate.json';
 import { calculateCombinedExtent } from '../../../data/_data';
 
